@@ -23,7 +23,7 @@ from collections.abc import Iterable, Sequence
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.model_selection import GroupKFold, cross_val_score
+from sklearn.model_selection import GroupKFold, cross_validate
 from sklearn.tree import DecisionTreeClassifier
 
 from src.utils import RANDOM_SEED
@@ -107,23 +107,36 @@ def _design_matrix(data: pd.DataFrame, feature_set: str) -> pd.DataFrame:
     raise ValueError(f"Nepoznat feature_set {feature_set!r}")
 
 
+#: Mjere točnosti koje izvještavamo za svaki model (sve na istim foldovima).
+CV_SCORERS = ("accuracy", "precision", "recall", "f1", "roc_auc")
+
+
 def evaluate_feature_sets(
     data: pd.DataFrame,
     feature_sets: Sequence[str] = ("betas", "betas+sector", "betas+cluster"),
     n_splits: int = 5,
     seed: int = RANDOM_SEED,
 ) -> pd.DataFrame:
-    """GroupKFold (po testnoj godini) CV točnost i ROC-AUC po modelu × skupu značajki.
+    """GroupKFold (po testnoj godini) CV mjere po modelu × skupu značajki.
+
+    Za svaki (model, feature_set) izvještava srednju ± std vrijednost pet mjera
+    kroz preklope: točnost, preciznost, odziv, F1 i ROC-AUC (vidi ``CV_SCORERS``).
+
+    Foldovi se **materijaliziraju jednom** i dijele između svih modela i svih
+    skupova značajki, pa je usporedba na identičnoj podjeli. Podjela ovisi samo o
+    grupama (testnoj godini), ne o značajkama, a ``GroupKFold`` je determinističan.
 
     Modeli: stablo odlučivanja (entropija i Gini, ``max_depth=3``), slučajna šuma
-    (bagging), gradijentni boosting. Vraća jedan redak po (model, feature_set) sa
-    srednjom ± std točnošću i ROC-AUC kroz preklope.
+    (bagging) i gradijentni boosting.
     """
     groups = data["test_year"].to_numpy()
     y = data["target"].to_numpy()
     n_groups = len(np.unique(groups))
     splits = min(n_splits, n_groups)
     gkf = GroupKFold(n_splits=splits)
+    # Izračunaj foldove JEDNOM i dijeli ih (kao listu (train, test) indeksa) sa
+    # svakim modelom i skupom značajki -> svi se vrednuju na identičnoj podjeli.
+    fold_indices = list(gkf.split(np.zeros(len(y)), y, groups))
 
     models = {
         "tree_entropy(d3)": DecisionTreeClassifier(criterion="entropy", max_depth=3, random_state=seed),
@@ -136,13 +149,15 @@ def evaluate_feature_sets(
     for fs in feature_sets:
         X = _design_matrix(data, fs).to_numpy(dtype=float)
         for name, model in models.items():
-            acc = cross_val_score(model, X, y, cv=gkf, groups=groups, scoring="accuracy")
-            auc = cross_val_score(model, X, y, cv=gkf, groups=groups, scoring="roc_auc")
-            rows.append({
+            cv = cross_validate(model, X, y, cv=fold_indices, scoring=list(CV_SCORERS))
+            row: dict[str, float | str] = {
                 "model": name, "feature_set": fs, "n_features": X.shape[1],
-                "acc_mean": float(acc.mean()), "acc_std": float(acc.std()),
-                "auc_mean": float(auc.mean()), "auc_std": float(auc.std()),
-            })
+            }
+            for metric in CV_SCORERS:
+                scores = cv[f"test_{metric}"]
+                row[f"{metric}_mean"] = float(scores.mean())
+                row[f"{metric}_std"] = float(scores.std())
+            rows.append(row)
     return pd.DataFrame(rows)
 
 
