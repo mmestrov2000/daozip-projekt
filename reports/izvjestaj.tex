@@ -1,76 +1,114 @@
-% Kompilacija: tectonic reports/izvjestaj.tex   (ili xelatex / lualatex)
+% Overleaf: ovaj projekt kompajlira s pdfLaTeX, XeLaTeX ili LuaLaTeX.
 \documentclass[11pt]{article}
 
-\usepackage{fontspec}                 % UTF-8 / XeTeX-LuaTeX font handling
-\usepackage{polyglossia}
-\setdefaultlanguage{croatian}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp}
+  \usepackage[croatian]{babel}
+  \DeclareUnicodeCharacter{201E}{\quotedblbase}
+  \DeclareUnicodeCharacter{201D}{\textquotedblright}
+  \DeclareUnicodeCharacter{2192}{$\rightarrow$}
+\else
+  \usepackage{fontspec}
+  \usepackage{polyglossia}
+  \setdefaultlanguage{croatian}
+\fi
 
 \usepackage{geometry}
 \geometry{a4paper, margin=2.4cm}
 \usepackage{graphicx}
-\graphicspath{{../outputs/figures/}}
+\graphicspath{{figures/}}
 \usepackage{booktabs}
 \usepackage{amsmath}
 \usepackage{caption}
-\captionsetup{font=small, labelfont=bf}
+\captionsetup{font=small, labelfont=bf, skip=0.45em}
+\usepackage{enumitem}
+\usepackage{placeins}
 \usepackage{microtype}
 \usepackage[hidelinks]{hyperref}
-\usepackage{float}
 
 \setlength{\parskip}{0.4em}
 \setlength{\parindent}{0pt}
-
-\title{\textbf{Skriveni stilski rizik u portfeljima minimalne varijance}\\[0.3em]
-\large Dijagnoza faktorskim klasteriranjem na indeksu Russell 1000 (2005.--2025.)}
-\author{Marin Meštrović\\[0.2em]
-\small Dubinska analiza podataka i otkrivanje znanja u podatcima --- PMF, Sveučilište u Zagrebu}
-\date{Lipanj 2026.}
+\setlength{\textfloatsep}{1.0em plus 0.2em minus 0.2em}
+\setlength{\floatsep}{0.8em plus 0.2em minus 0.2em}
+\setlength{\intextsep}{0.8em plus 0.2em minus 0.2em}
+\setcounter{secnumdepth}{0}
+\setcounter{tocdepth}{1}
+\renewcommand{\arraystretch}{1.08}
+\renewcommand{\contentsname}{Pregled sadržaja}
+\setlist{itemsep=0.25em, topsep=0.35em, leftmargin=*}
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
 
 \begin{document}
-\maketitle
+\thispagestyle{plain}
+\begin{center}
+  \vspace*{1.0cm}
+  {\Large\bfseries Skriveni faktorski rizik u portfeljima minimalne varijance\par}
+  \vspace{0.35cm}
+  {\large Analiza i korekcija hijerarhijskim klasteriranjem na indeksu Russell 1000
+  (2005.--2025.)\par}
 
-\begin{abstract}
-\noindent
-Portfelji minimalne varijance isključivo s dugim pozicijama uobičajeno se promatraju kao
-„neutralna” referenca: po konstrukciji minimiziraju varijancu bez izričitoga stava o
-prinosima. Ovaj projekt pokazuje da takvi portfelji na indeksu Russell 1000 nose
-\emph{skriven i postojan} nagib prema Fama--French stilskim faktorima profitabilnosti
-(RMW) i ulaganja (CMA), te da taj nagib ostaje skriven i sektorskoj i korelacijskoj
-diverzifikaciji. Dijagnozu gradimo klasteriranjem dionica u prostoru faktorske
-izloženosti --- metodom otkrivanja znanja koja se obrađuje na kolegiju. Klasteriranje
-ispravno \emph{lokalizira} problem, no intuitivni ispravak --- ograničenje težine po
-klasteru --- pokazuje se neuspješnim. Djelotvoran je ispravak izravno linearno
-ograničenje na faktorske bete portfelja, koje ostvarenu koncentraciju stila smanjuje za
-31\,\% uz zanemariv trošak u volatilnosti ($p \approx 0.002$).
-\end{abstract}
+  \vfill
+
+  {\large Marin Meštrović\par}
+  \vspace{0.35cm}
+  {\normalsize Dubinska analiza podataka i otkrivanje znanja iz podataka\par}
+  {\normalsize PMF, Sveučilište u Zagrebu\par}
+  \vspace{0.35cm}
+  {\normalsize Lipanj 2026.\par}
+
+  \vfill
+
+  {\bfseries Sažetak\par}
+  \vspace{0.55em}
+  \begin{minipage}{0.84\textwidth}
+    \small
+    Portfelji minimalne varijance s long pozicijama uobičajeno se promatraju kao
+    neutralna referenca: po konstrukciji minimiziraju varijancu. Ovaj projekt pokazuje da takvi portfelji nose
+    skrivenu izloženost prema Fama--French faktorima profitabilnosti
+    (RMW) i ulaganja (CMA), te da taj nagib ostaje skriven i sektorskoj i korelacijskoj
+    diverzifikaciji. Dijagnozu radimo klasteriranjem dionica u prostoru faktorske
+    izloženosti. Klasteriranje ispravno \emph{lokalizira} problem, no intuitivni ispravak 
+    (ograničenje težine po klasteru) pokazuje se neuspješnim. Uspješan ispravak je
+    izravno linearno ograničenje na faktorske bete portfelja, koje ostvarenu koncentraciju
+    stila smanjuje za 31\,\% uz zanemariv trošak u volatilnosti ($p \approx 0.002$).
+  \end{minipage}
+  \vspace*{1.0cm}
+\end{center}
+
+\clearpage
+\renewcommand{\contentsname}{Sadržaj}
+\tableofcontents
+\clearpage
 
 \section{Ciljevi}
 
-Hipoteza projekta jest da mehanička minimizacija rizika neprimjetno daje prednost
+Hipoteza projekta jest da klasična minimizacija rizika daje prednost
 određenom području faktorskoga prostora te tako gradi skrivenu stilsku izloženost.
-Postavljamo tri pitanja koja ujedno čine i trodijelnu strukturu rada:
+Postavljamo tri pitanja:
 
 \begin{enumerate}
-  \item \textbf{Otkriće.} Nose li portfelji minimalne varijance skriven stilski nagib i
-        može li se on učiniti vidljivim klasteriranjem u prostoru faktora?
-  \item \textbf{Neuspjeli ispravak.} Ako klasteri ocrtavaju problem, ublažava li ga
+  \item \textbf{Istraživanje.} Nose li portfelji minimalne varijance skrivenu stilsku izloženost i
+        može li se ona učiniti vidljivom klasteriranjem u prostoru faktora?
+  \item \textbf{Neuspješan ispravak.} Ako klasteri ocrtavaju problem, ublažava li ga
         ograničavanje težine portfelja po klasteru?
-  \item \textbf{Djelotvoran ispravak.} Ako ne, koje ograničenje uistinu smanjuje stilski
-        nagib bez žrtvovanja niske volatilnosti?
+  \item \textbf{Uspješan ispravak.} Ako ne, možemo li naći ograničenje koje zapravo smanjuje stilsku izloženost bez žrtvovanja niske volatilnosti?
 \end{enumerate}
 
-Metodološko je težište na klasteriranju kao alatu za \emph{otkrivanje znanja}: ono nije
-tek opisni korak, nego okvir kroz koji tumačimo cijelu analizu i izvor hipoteze o
-ispravku. Uz glavni tijek analize, projekt sustavno obuhvaća metode kolegija ---
-particijsko, vjerojatnosno i na gustoći utemeljeno klasteriranje, odabir broja klastera
-indeksima interne validacije te nadzirana stabla odlučivanja i ansamble.
+Metodološki fokus je na klasteriranju kao alatu za otkrivanje znanja: ono nije
+tek opisni korak, nego okvir kroz koji tumačimo analizu i ideju hipoteze za
+ispravak. Uz glavni tijek analize, projekt sustavno obuhvaća metode obrađene u kolegiju (particijsko, vjerojatnosno i klasteriranje utemeljeno na gustoći, odabir broja klastera
+indeksima interne validacije te nadzirana stabla odlučivanja i ansamble).
 
-\section{Podatci}
+\section{Podaci}
 
 \begin{itemize}
-  \item \textbf{Univerzum.} Trenutačni sastav indeksa Russell 1000 (1.002 dionice s
-        pripadajućim GICS sektorima). Pristranost preživljavanja priznajemo: rabi se
-        trenutačno članstvo u indeksu.
+  \item \textbf{Skup dionica.} Trenutni sastav indeksa Russell 1000 (1.002 dionice s
+        pripadajućim GICS sektorima).
   \item \textbf{Cijene.} Dnevne prilagođene zaključne cijene (Yahoo Finance, \texttt{yfinance}),
         agregirane na zadnji dan u mjesecu.
   \item \textbf{Faktori.} Fama--French petfaktorski mjesečni prinosi iz zbirke podataka
@@ -82,33 +120,39 @@ indeksima interne validacije te nadzirana stabla odlučivanja i ansamble.
 Univerzum raste s približno 600 dionica u prozoru 2009-12 na približno 880 u prozoru
 2024-12, kako dionice s kasnijim IPO-om počinju ispunjavati uvjete (slika~\ref{fig:coverage}).
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
-  \includegraphics[width=0.78\linewidth]{01_universe_coverage.png}
+  \includegraphics[width=0.78\linewidth]{fig01-universe-coverage.png}
   \caption{Pokrivenost univerzuma kroz klizne prozore procjene: broj dionica s najmanje
   60 valjanih mjeseci i čistom petfaktorskom prilagodbom.}
   \label{fig:coverage}
 \end{figure}
+\FloatBarrier
 
 \section{Metodologija}
 
-\paragraph{Značajke dionice.} Za svaki par \emph{(prozor, dionica)} procjenjujemo OLS
+\paragraph{Značajke dionice.} Za svaki par (prozor, dionica) procjenjujemo OLS
 petfaktorsku regresiju (metoda najmanjih kvadrata) na viškovima prinosa i bilježimo
-$(\alpha,\ \beta_{\text{MKT}},\ \beta_{\text{SMB}},\ \beta_{\text{HML}},\
-\beta_{\text{RMW}},\ \beta_{\text{CMA}},\ \sigma_\varepsilon,\ R^2)$. Prilagodbe koje krše
-granice kvalitete ($|\beta|\le 5$, $\sigma_\varepsilon\le 0.50$, $R^2\ge 0.05$) izbacuju se
-iz toga prozora.
+\[
+  (\alpha,\ \beta_{\text{MKT}},\ \beta_{\text{SMB}},\ \beta_{\text{HML}},\
+  \beta_{\text{RMW}},\ \beta_{\text{CMA}},\ \sigma_\varepsilon,\ R^2).
+\]
+Prilagodbe koje krše granice kvalitete
+($|\beta|\le 5$, $\sigma_\varepsilon\le 0.50$, $R^2\ge 0.05$) izbacuju se iz toga prozora.
 
-\paragraph{Klasteriranje.} Glavni predmet istraživanja jesu \emph{faktorski klasteri}:
-Wardova veza na euklidskoj udaljenosti nad šest standardiziranih značajki (z-vrijednosti)
-$(\beta_{\text{MKT}}, \beta_{\text{SMB}}, \beta_{\text{HML}}, \beta_{\text{RMW}},
-\beta_{\text{CMA}}, \sigma_\varepsilon)$. Kao referentne podjele za usporedbu služe
+\paragraph{Klasteriranje.} Glavni predmet istraživanja jesu faktorski klasteri:
+Wardova veza na euklidskoj udaljenosti nad šest standardiziranih značajki:
+\[
+  (\beta_{\text{MKT}},\ \beta_{\text{SMB}},\ \beta_{\text{HML}},\
+  \beta_{\text{RMW}},\ \beta_{\text{CMA}},\ \sigma_\varepsilon).
+\]
+Kao referentne podjele za usporedbu služe
 \emph{korelacijski klasteri} (potpuna veza na udaljenosti $\sqrt{2(1-\rho)}$) i
 \emph{GICS sektori}. Broj klastera $K=7$ najveća je vrijednost po prosječnoj silueti koja
-zadovoljava dva uvjeta uloživosti: svaki klaster ima $\ge 4$ dionice u svakom prozoru te
-$K \times \text{group\_cap} \ge 1$ uz $\text{group\_cap}=0.15$.
+zadovoljava dva uvjeta uloživosti: svaki klaster ima $\ge 4$ dionice u svakom prozoru, a
+vrijedi i $K \times \text{group\_cap} \ge 1$ uz $\text{group\_cap}=0.15$.
 
-\paragraph{Portfelji.} Svi su portfelji isključivo s dugim pozicijama, u svakom prozoru
+\paragraph{Portfelji.} Svi su portfelji isključivo s long pozicijama, u svakom prozoru
 potpuno uloženi, uz ograničenje pojedinačne pozicije $w_{\max}=0.02$:
 
 \begin{enumerate}
@@ -123,52 +167,53 @@ potpuno uloženi, uz ograničenje pojedinačne pozicije $w_{\max}=0.02$:
 \end{enumerate}
 
 Kovarijancu procjenjujemo Ledoit--Wolfovim sažimanjem na mjesečnim prinosima iz prozora
-procjene, preračunatu na godišnju razinu množenjem s 12. Glavna mjera nagiba jest
+procjene, preračunatu na godišnju razinu množenjem s 12. Glavna mjera izloženosti jest
 \textbf{koncentracija stila}
 $\;|\beta_{\text{SMB}}| + |\beta_{\text{HML}}| + |\beta_{\text{RMW}}| + |\beta_{\text{CMA}}|$.
 
-\paragraph{Klizni unaprijedni postupak (\emph{walk-forward}) i bootstrap.} Prozor procjene
+\paragraph{Klizni walk-forward postupak i bootstrap.} Prozor procjene
 obuhvaća 60 mjeseci unatrag, testni horizont 12 mjeseci, a ponovnu procjenu provodimo
 svakih 12 mjeseci $\rightarrow$ 16 disjunktnih testnih godina (2010.--2025.). Za intervale
 pouzdanosti razlika među metrikama koristimo blok-bootstrap (pomični blokovi od 12
 mjeseci, 1000 ponovnih uzoraka).
 
-\section{Čin I --- Otkriće}
+\section{I: Istraživanje}
 
-\subsection{Klasteriranje otkriva faktorsku strukturu univerzuma}
+\subsection{Klasteriranje otkriva faktorsku strukturu}
 
-Faktorsko klasteriranje dijeli univerzum na sedam stilski koherentnih skupina.
+Faktorsko klasteriranje dijeli skup dionica na sedam stilski koherentnih skupina.
 Radar-grafovi centroida (slika~\ref{fig:radar}) prikazuju njihove standardizirane faktorske
 profile, a UMAP-projekcija, obojena na tri načina (slika~\ref{fig:umap}), otkriva ključan
 nalaz: faktorski klasteri dijele univerzum po granicama koje ne prepoznaju ni korelacijski
 klasteri ni GICS sektori.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
-  \includegraphics[width=0.92\linewidth]{02_cluster_centroids_radar.png}
+  \includegraphics[width=0.86\linewidth,height=0.56\textheight,keepaspectratio]{fig02-factor-cluster-centroids-radar.png}
   \caption{Radar-grafovi centroida sedam faktorskih klastera (standardizirani faktorski
-  profili). Svaki klaster odgovara prepoznatljivu stilu.}
+  profili).}
   \label{fig:radar}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
-  \includegraphics[width=\linewidth]{02_factor_umap_three_panels.png}
+  \includegraphics[width=0.96\linewidth]{fig03-factor-umap-panels.png}
   \caption{UMAP-projekcija prostora faktora, obojena po faktorskom klasteru, korelacijskom
   klasteru i GICS sektoru. Faktorska se geometrija ne podudara ni sa sektorima ni s
   korelacijskom strukturom.}
   \label{fig:umap}
 \end{figure}
 
-Stabilnost klastera pri bootstrap-ponovnom uzorkovanju umjerena je: srednji Jaccardov
+Stabilnost klastera pri bootstrap uzorkovanju umjerena je: srednji Jaccardov
 indeks zajedničke pripadnosti iznosi $0.30$ za faktorske naspram $0.26$ za korelacijske
 klastere, dovoljno da potvrdi kako struktura nije slučajnost svojstvena uzorku.
+\FloatBarrier
 
-\subsection{Skriveni nagib: minimalna varijanca naginje profitabilnosti i niskom ulaganju}
+\subsection{Skrivena izloženost: minimalna varijanca naginje profitabilnosti i niskom ulaganju}
 
-Petfaktorska atribucija prinosa na punom testnom uzorku otkriva nagib (tablica~\ref{tab:attr1}).
+Petfaktorska atribucija prinosa na punom testnom uzorku otkriva izloženost (tablica~\ref{tab:attr1}).
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \caption{Petfaktorska atribucija na punom uzorku (192 mjeseca).}
   \label{tab:attr1}
@@ -187,42 +232,42 @@ Petfaktorska atribucija prinosa na punom testnom uzorku otkriva nagib (tablica~\
 \end{table}
 
 Minimalna varijanca pokazuje jasnu pozitivnu izloženost faktorima RMW ($+0.33$) i CMA
-($+0.34$) --- prepoznatljiv stil visoke profitabilnosti i niskoga ulaganja. Koncentracija
+($+0.34$) -- prepoznatljiv stil visoke profitabilnosti i niskoga ulaganja. Koncentracija
 stila iznosi $0.98$, znatno iznad vrijednosti $0.83$ portfelja jednakih težina. Sektorsko
 ograničenje smješteno je gotovo točno povrh neograničene minimalne varijance; korelacijsko
-ograničenje koncentraciju umjereno snižava ($0.86$), no blok-bootstrap interval obuhvaća
-nulu ($p\approx 0.99$), pa razlika nije razlučiva od šuma. Nagib je usto \emph{postojan}
+ograničenje koncentraciju umjereno snižava ($0.86$), no razlika nije razlučiva od šuma. Nagib je postojan
 kroz sve režime (slika~\ref{fig:concperyear}): oporavak nakon globalne financijske krize,
 uzlet kvalitetnih dionica nakon 2014., šok pandemije COVID-19 te kamatni ciklus 2022.--2023.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
-  \includegraphics[width=0.92\linewidth]{04_style_concentration_per_year.png}
+  \includegraphics[width=0.84\linewidth]{fig04-style-concentration-by-year.png}
   \caption{Koncentracija stila po testnoj godini za pet izvornih portfelja. Nagib minimalne
   varijance postojan je kroz režime.}
   \label{fig:concperyear}
 \end{figure}
 
-Radi zornosti, slika~\ref{fig:weights} prikazuje kako svaki portfelj raspoređuje težinu po
+Slika~\ref{fig:weights} prikazuje kako svaki portfelj raspoređuje težinu po
 sedam faktorskih klastera. Minimalna varijanca koncentrira približno 84\,\% težine u samo
-dva klastera --- defenzivni klaster velikih dionica i klaster niskoga ulaganja --- čiji je
+dva klastera: defenzivni klaster velikih dionica i klaster niskoga ulaganja, čiji je
 zajednički profil upravo RMW/CMA nagib koji je dijagnoza prepoznala.
 
-\begin{figure}[H]
+\begin{figure}[!h]
   \centering
-  \includegraphics[width=0.92\linewidth]{06_cluster_weight_allocation.png}
+  \includegraphics[width=0.76\linewidth]{fig05-cluster-weight-allocation.png}
   \caption{Raspodjela težina po sedam faktorskih klastera po portfelju (prozor 2024-12).}
   \label{fig:weights}
 \end{figure}
+\FloatBarrier
 
-\section{Čin II --- Ograničenje po klasteru i njegov neuspjeh}
+\section{II: Ograničenje po klasteru i neuspjeh}
 
 Intuitivan ispravak glasi: budući da klasteri ocrtavaju stilska područja, ograničavanje
 težine svakog klastera na 15\,\% trebalo bi prisiliti optimizator da se raširi cijelim
 faktorskim prostorom i razrijedi nagib. Rezultat je, međutim, negativan
 (tablica~\ref{tab:fail}).
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \caption{Učinak ograničenja faktorskih klastera (puni uzorak).}
   \label{tab:fail}
@@ -241,35 +286,34 @@ faktorskim prostorom i razrijedi nagib. Rezultat je, međutim, negativan
 Ograničenje jest neutraliziralo ciljani RMW nagib ($+0.33\rightarrow-0.15$), no težinu je
 premjestilo u klastere s jačom izloženošću faktorima SMB i CMA ($\beta_{\text{SMB}}:
 0.20\rightarrow0.55$; $\beta_{\text{CMA}}: 0.34\rightarrow0.58$). Rezultat je portfelj s
-\emph{većom} ukupnom koncentracijom stila ($1.47$) i za $5.8$ postotnih bodova višom
+većom ukupnom koncentracijom stila ($1.47$) i za $5.8$ postotnih bodova višom
 godišnjom volatilnošću (blok-bootstrap $p\approx 0.000$).
 
 \paragraph{Zašto ispravak ne uspijeva.} Strukturni je razlog što su Wardovi klasteri u
-prostoru faktora po konstrukciji zbijeni --- svaki je koherentna stilska skupina s
-vlastitim nagibom. Ograničenje grupne težine nadzire \emph{koliko} težine pripada svakoj
-skupini, ali ne i \emph{smjer} njezine faktorske izloženosti. Ukupna izloženost portfelja
+prostoru faktora po konstrukciji zbijeni -- svaki je koherentna stilska skupina s
+vlastitim nagibom. Ograničenje grupne težine nadzire koliko težine pripada svakoj
+skupini, ali ne i smjer faktorske izloženosti. Ukupna izloženost portfelja
 težinski je prosjek tih nagiba, koji se ne moraju međusobno poništiti. Ključan je uvid
-sljedeći: klasteri ispravno prepoznaju \emph{gdje} faktorska struktura leži (izvrsna su
+sljedeći: klasteri ispravno prepoznaju gdje faktorska struktura leži (odlična
 dijagnostika), ali su pogrešan mehanizam za ograničavanje. Da bi se nagib doista smanjio,
 ograničenje mora djelovati izravno na faktorske bete.
 
-\section{Čin III --- Djelotvoran ispravak: izravna faktorska neutralnost}
+\section{III: Uspješan ispravak: izravna faktorska neutralnost}
 
-Neuspjeh ograničenja po klasteru uputio je na pravo rješenje. Kvadratni program minimalne
+Neuspješno ograničavanje po klasteru uputilo je na bolje rješenje. Kvadratni program minimalne
 varijance proširujemo linearnim ograničenjem koje djeluje upravo na geometriji koju je
-klasteriranje otkrilo --- na faktorskim betama portfelja:
+klasteriranje otkrilo, tj. na faktorskim betama portfelja:
 \[
   \big|\, w^{\!\top}\beta_f \,\big| \le \varepsilon,
   \qquad f \in \{\text{SMB},\ \text{HML},\ \text{RMW},\ \text{CMA}\}.
 \]
 Pritom je $\beta_f$ vektor faktorskih izloženosti dionica procijenjen na istom prozoru
 procjene. $\varepsilon=0$ nameće strogu faktorsku neutralnost u trenutku procjene, dok
-pozitivan $\varepsilon$ dopušta nadziran nagib. Ograničenje je linearno, funkcija cilja
-ostaje nepromijenjena, a program konveksan.
+pozitivan $\varepsilon$ dopušta nadziran nagib.
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
-  \caption{Atribucija i ostvarena volatilnost faktorski neutralne obitelji (puni uzorak).}
+  \caption{Atribucija i ostvarena volatilnost faktorski neutralne familije (puni uzorak).}
   \label{tab:fix}
   \small
   \begin{tabular}{lrrrrrrr}
@@ -292,7 +336,7 @@ koncentracije stila u odnosu na minimalnu varijancu u cijelosti je ispod nule ($
 95\,\% CI $[-0.47,\,-0.09]$; $p=0.002$), dok interval razlike volatilnosti obuhvaća nulu
 ($p=0.59$). Upravo je to kompromis koji je dijagnoza tražila (slika~\ref{fig:bootstrap}).
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \caption{Blok-bootstrap intervali razlika u odnosu na \texttt{min\_var} (1000 ponovnih uzoraka).}
   \label{tab:boot}
@@ -309,59 +353,60 @@ koncentracije stila u odnosu na minimalnu varijancu u cijelosti je ispod nule ($
   \end{tabular}
 \end{table}
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
-  \includegraphics[width=0.62\linewidth]{05_bootstrap_factor_neutral_e0.png}
+  \includegraphics[width=0.62\linewidth]{fig06-bootstrap-factor-neutral-e0.png}
   \caption{Bootstrap-distribucija razlike koncentracije stila (faktorski neutralan
   $\varepsilon{=}0$ $-$ \texttt{min\_var}). Interval leži u cijelosti ispod nule.}
   \label{fig:bootstrap}
 \end{figure}
 
 Granica koncentracije stila naspram ostvarene volatilnosti (slika~\ref{fig:frontier})
-smješta čistu faktorski neutralnu obitelj na efikasnu granicu: ona smanjuje nagib bez
-porasta volatilnosti, dok hibridni portfelji (klaster $+$ neutralnost) i faktorsko-klasterski
-portfelj to plaćaju višom volatilnošću.
+smješta čistu faktorski neutralnu obitelj na efikasnu granicu: ona smanjuje izloženost bez
+porasta volatilnosti, dok hibridni portfelji to plaćaju višom volatilnošću.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
-  \includegraphics[width=0.72\linewidth]{05_frontier_style_vs_vol.png}
-  \caption{Koncentracija stila naspram ostvarene godišnje volatilnosti za sve obitelji
-  portfelja. Faktorski neutralna obitelj zauzima efikasnu granicu.}
+  \includegraphics[width=0.72\linewidth]{fig07-style-volatility-frontier.png}
+  \caption{Koncentracija stila naspram ostvarene godišnje volatilnosti za sve familije
+  portfelja. Faktorski neutralna familija zauzima efikasnu granicu.}
   \label{fig:frontier}
 \end{figure}
+\FloatBarrier
 
-\section{Pokrivenost metoda kolegija}
+\section{Metodološka proširenja i provjere}
 
-Dva dodatka čvršće povezuju projekt s metodama kolegija i podvrgavaju njegove odluke
-dodatnoj provjeri.
+Dva dodatna pokusa provjeravaju robusnost odabranog klasteriranja i ispituju može li se
+ista faktorska reprezentacija koristiti i prediktivno.
 
-\paragraph{Algoritmi klasteriranja i odabir $K$ (predavanja 9b/10).} Prostor faktora
+\paragraph{Algoritmi klasteriranja i odabir $K$.} Prostor faktora
 ponovno smo klasterirali particijskim metodama (K-means, k-medoid), vjerojatnosnom
 metodom (mješavina Gaussovih distribucija, EM) te metodom utemeljenom na gustoći (DBSCAN),
 uz odabir $K$ pomoću siluete, Calinski--Harabaszova i Davies--Bouldinova indeksa te Gap
 statistike (slika~\ref{fig:kselect}). Zaključci: (i) struktura je otporna na izbor
-algoritma --- K-means daje u osnovi iste skupine kao Wardova metoda (ARI $\approx 0.45$);
+algoritma -- K-means daje u osnovi iste skupine kao Wardova metoda (ARI $\approx 0.45$);
 (ii) sva četiri indeksa interne validacije upućuju na \emph{statistički} prirodan $K$
-između 3 i 5, pa je $K=7$ ponajprije uvjet uloživosti, a ne optimum siluete --- što dijelom
+između 3 i 5, pa je $K=7$ ponajprije uvjet uloživosti, a ne optimum siluete, što dijelom
 objašnjava zašto je ispravak ograničenjem po klasteru imao tako malo strukture za
 iskoristiti; (iii) DBSCAN ne pronalazi prirodne praznine u gustoći (ARI $\approx 0$), čime
 se potvrđuje da su metode sa zadanim $K$ ovdje pravi alat.
 
-\begin{figure}[H]
+\begin{figure}[!htbp]
   \centering
-  \includegraphics[width=0.95\linewidth]{07_kselection_indices.png}
+  \includegraphics[width=0.95\linewidth]{fig08-k-selection-indices.png}
   \caption{Indeksi za odabir broja klastera i Gap statistika za Wardovu metodu i K-means.
   Prirodan $K$ nalazi se u rasponu 3--5.}
   \label{fig:kselect}
 \end{figure}
+\FloatBarrier
 
-\paragraph{Nadzirano proširenje --- predviđanje pada (predavanja 3--4).} Za svaku dionicu i
+\paragraph{Nadzirano proširenje (predviđanje pada).} Za svaku dionicu i
 testno razdoblje označavamo „visok pad” (gori od medijana u presjeku te godine) te ga
-predviđamo iz značajki prozora procjene --- stablima odlučivanja (entropija / Gini, dubina
-3) i ansamblima (slučajna šuma, gradijentni boosting) --- uz unakrsnu validaciju grupiranu
+predviđamo iz značajki prozora procjene, stablima odlučivanja (entropija / Gini, dubina
+3) i ansamblima (slučajna šuma, gradijentni boosting) -- uz unakrsnu validaciju grupiranu
 po testnoj godini (GroupKFold).
 
-\begin{table}[H]
+\begin{table}[!htbp]
   \centering
   \caption{Unakrsna validacija predviđanja pada (najbolji model po skupu značajki).}
   \label{tab:cv}
@@ -381,13 +426,10 @@ Pad je umjereno predvidljiv (AUC $\approx 0.69$ naspram 0.5), no signalom domini
 rezidualna volatilnost (idiosinkratski rizik) i tržišna beta, a ne stilski faktori.
 Dodavanje GICS sektora ili oznake klastera ne donosi poboljšanje u odnosu na same bete:
 klaster je izvrstan \emph{opisni} objekt, ali ne i dodatna \emph{prediktivna} značajka.
-Taj rezultat iznosimo onakvim kakav jest --- opisna struktura ne služi ujedno i kao
-prediktor.
 
 \section{Zaključak}
 
-\textbf{Otkriće.} Portfelji minimalne varijance na indeksu Russell 1000 nose skriven i
-postojan nagib prema faktorima profitabilnosti (RMW) i ulaganja (CMA) --- koncentraciju
+\textbf{Istraživanje.} Portfelji minimalne varijance na indeksu Russell 1000 nose skrivenu izloženost prema faktorima profitabilnosti (RMW) i ulaganja (CMA) -- koncentraciju
 stila skrivenu sektorskoj i korelacijskoj diverzifikaciji, ali jasno ocrtanu klasteriranjem
 u prostoru faktora.
 
@@ -395,24 +437,16 @@ u prostoru faktora.
 izravno u kvadratni program smanjuje ostvarenu koncentraciju stila za 31\,\% pri
 $\varepsilon=0$, bez vidljiva troška u volatilnosti ($p\approx 0.002$).
 
-\textbf{Pouka.} Struktura faktorskih klastera bila je ispravna dijagnostika --- učinila je
-skriveni nagib vidljivim --- ali pogrešan mehanizam ispravka: ograničavanje grupne težine
-ne cilja nijednu pojedinačnu betu. Djelotvoran ispravak postavlja ograničenje točno ondje
-gdje je klasteriranje pokazalo problem: na same faktorske bete.
+\textbf{Sažetak.} Struktura faktorskih klastera bila je ispravna dijagnostika -- učinila je
+skriveni nagib vidljivim, ali pogrešan mehanizam ispravka: ograničavanje grupne težine
+ne cilja nijednu pojedinačnu betu. Uspješan ispravak postavlja ograničenje točno ondje
+gdje je klasteriranje pokazalo problem: na faktorske bete.
 
-\paragraph{Glavna ograničenja.} (i) Pristranost preživljavanja --- univerzum je trenutačni
+\paragraph{Glavna ograničenja.} (i) Pristranost preživljavanja -- skup dionica je trenutačni
 sastav indeksa Russell 1000, a ne indeks u stvarnoj povijesnoj točki. (ii) Bete su
 procijenjene iz 60 mjesečnih opažanja, dovoljno malo da unesu šum u procjenu. (iii)
-Transakcijski troškovi i obrtaj zanemareni su. (iv) Predviđanje prinosa nije cilj; brojevi
-kumulativnoga rasta nuspojava su, a ne rezultat. (v) Korelacijsko-klasterski portfelj i
+Transakcijski troškovi su izostavljeni. (iv) Korelacijsko-klasterski portfelj i
 hibridi pri $\varepsilon\in\{0,0.05\}$ agregirani su preko manjega broja testnih mjeseci
 (168/180 naspram 192) zbog neizvedivosti u najranijim prozorima.
-
-\vspace{1em}
-\hrule
-\vspace{0.6em}
-{\small Programski kod, podatci i sve slike: repozitorij projekta (\texttt{src/},
-\texttt{notebooks/} 01--08, \texttt{outputs/}). Detaljan narativni izvještaj:
-\texttt{reports/final\_report.md}.}
 
 \end{document}
