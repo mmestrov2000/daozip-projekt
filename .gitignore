@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Project data
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/russell1000_tickers.csv
+!data/raw/iwb_holdings_meta.json
+
+# Local/editor files
+.DS_Store
+.idea/
+.vscode/
+.claude/
