@@ -18,6 +18,7 @@ import requests
 import yfinance as yf
 
 from src.utils import (
+    MIN_TRAINING_MONTHS,
     PRICE_CACHE_DIR,
     PROCESSED_DATA_DIR,
     PROJECT_END,
@@ -414,6 +415,112 @@ def universe_for_window(window, membership: pd.DataFrame | None = None) -> list[
     return membership_on(date, membership=membership)
 
 
+def union_universe(
+    start: str | pd.Timestamp = PROJECT_START,
+    end: str | pd.Timestamp = PROJECT_END,
+    membership: pd.DataFrame | None = None,
+) -> list[str]:
+    """Unija svih tickera koji su ikad bili članovi S&P 500 u [start, end] (F0.8).
+
+    Ticker ulazi u uniju ako mu se bar jedan interval članstva preklapa s
+    razdobljem projekta. Ovo je panel-univerzum nad kojim ``preprocess`` gradi
+    prinose; point-in-time presjek po prozoru i dalje radi ``universe_for_window``.
+    """
+    if membership is None:
+        membership = _load_membership()
+    start_ts = _month_start(start)
+    end_ts = _month_end(end)
+    overlap = membership[
+        (membership["start_date"] <= end_ts)
+        & (membership["end_date"].isna() | (membership["end_date"] >= start_ts))
+    ]
+    return sorted(overlap["ticker"].unique())
+
+
+def _membership_bounds(membership: pd.DataFrame) -> pd.DataFrame:
+    """Po tickeru sažmi intervale članstva u (member_from, member_to).
+
+    ``member_from`` = najraniji ulazak; ``member_to`` = najkasniji izlazak, ili
+    ``NaT`` ako je bilo koji interval još otvoren (ticker je trenutačno član).
+    """
+
+    def _last_end(end_dates: pd.Series) -> pd.Timestamp:
+        return pd.NaT if end_dates.isna().any() else end_dates.max()
+
+    grouped = membership.groupby("ticker")
+    return pd.DataFrame(
+        {
+            "member_from": grouped["start_date"].min(),
+            "member_to": grouped["end_date"].apply(_last_end),
+        }
+    )
+
+
+def membership_coverage_report(
+    monthly_returns: pd.DataFrame,
+    windows: Iterable | None = None,
+    membership: pd.DataFrame | None = None,
+    min_training_months: int = MIN_TRAINING_MONTHS,
+    output_path: str | Path | None = TABLES_DIR / "00_membership_coverage.csv",
+) -> pd.DataFrame:
+    """Pokrivenost point-in-time univerzuma po prozoru treniranja (F0.7).
+
+    Za svaki prozor računa: broj point-in-time članova na ``train_end``, koliko
+    ih ima valjane cijene (bar jedan ne-NaN mjesečni prinos u prozoru
+    treniranja), koliko prolazi filtar ≥ ``min_training_months`` valjanih
+    mjeseci, te pripadne postotke. Po zaključanoj odluci 1 — nepoznata
+    pristranost preživjelih postaje izmjerena veličina.
+
+    Vraća DataFrame sa stupcima ``train_window, n_members, n_with_prices,
+    n_with_60m, pct_prices, pct_60m``.
+    """
+    if membership is None:
+        membership = _load_membership()
+    if windows is None:
+        from src.backtest import generate_rolling_windows
+
+        windows = generate_rolling_windows()
+
+    records: list[dict] = []
+    for window in windows:
+        members = universe_for_window(window, membership)
+        present = [ticker for ticker in members if ticker in monthly_returns.columns]
+        train_panel = monthly_returns.loc[
+            window.train_start : window.train_end, present
+        ]
+        valid_counts = train_panel.notna().sum(axis=0)
+        n_members = len(members)
+        n_with_prices = int((valid_counts > 0).sum())
+        n_with_60m = int((valid_counts >= min_training_months).sum())
+        records.append(
+            {
+                "train_window": window.label,
+                "n_members": n_members,
+                "n_with_prices": n_with_prices,
+                "n_with_60m": n_with_60m,
+                "pct_prices": round(100.0 * n_with_prices / max(n_members, 1), 2),
+                "pct_60m": round(100.0 * n_with_60m / max(n_members, 1), 2),
+            }
+        )
+
+    coverage = pd.DataFrame(
+        records,
+        columns=[
+            "train_window",
+            "n_members",
+            "n_with_prices",
+            "n_with_60m",
+            "pct_prices",
+            "pct_60m",
+        ],
+    )
+    if output_path is not None:
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        coverage.to_csv(output_path, index=False)
+    return coverage
+
+
 # ---------------------------------------------------------------------------
 # Obnovljiva predmemorija cijena po dionici
 # ---------------------------------------------------------------------------
@@ -767,11 +874,16 @@ def preprocess(
     force_universe: bool = False,
     force_prices: bool = False,
 ) -> dict[str, pd.DataFrame]:
-    """Pokreni pretprocesiranje faze 1 i zapiši CSV izlaze projekta.
+    """Pokreni pretprocesiranje i zapiši CSV izlaze projekta (F0.8).
 
-    Dohvaća Russell 1000 s iSharesa (predmemorirano na disku), preuzima dnevne
-    cijene po dionici (obnovljiva parquet predmemorija), preuzorkuje na mjesečno,
-    poravnava s Fama-French faktorima i zapisuje obrađene CSV-ove.
+    Univerzum je unija svih tickera koji su ikad bili članovi point-in-time
+    S&P 500 u razdoblju projekta (``union_universe`` nad tablicom članstva iz
+    F0.5), a ne više trenutačni Russell 1000. Preuzima dnevne cijene po dionici
+    (obnovljiva parquet predmemorija, uz Stooq dopunu iz F0.6), preuzorkuje na
+    mjesečno, poravnava s Fama-French faktorima i zapisuje obrađene CSV-ove
+    (``monthly_returns``, ``excess_returns``, ``factors``, ``metadata``) te
+    tablicu ``membership``. ``metadata`` dobiva stupce ``price_source,
+    member_from, member_to``.
     """
     raw_dir = Path(raw_dir)
     processed_dir = Path(processed_dir)
@@ -780,11 +892,49 @@ def preprocess(
     processed_dir.mkdir(parents=True, exist_ok=True)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    tickers_path = raw_dir / "russell1000_tickers.csv"
-    if force_universe or not tickers_path.exists():
-        universe = fetch_russell1000_tickers(output_path=tickers_path, raw_dir=raw_dir)
-    else:
-        universe = pd.read_csv(tickers_path)
+    membership_path = raw_dir / SP500_MEMBERSHIP_PATH.name
+    if force_universe or not membership_path.exists():
+        fetch_sp500_membership(output_path=membership_path, raw_dir=raw_dir)
+    membership = pd.read_csv(
+        membership_path, parse_dates=["start_date", "end_date"]
+    )
+    union = union_universe(start, end, membership)
+
+    # Ime iz tablice članstva; GICS sektor iz postojećih slojeva gdje postoji
+    # (stari Russell popis / prethodni metadata), inače "Unknown".
+    name_map = {
+        str(ticker).strip(): str(name).strip()
+        for ticker, name in zip(membership["ticker"], membership["name"].fillna(""))
+    }
+    sector_map: dict[str, str] = {}
+    russell_path = raw_dir / "russell1000_tickers.csv"
+    if russell_path.exists():
+        russell = pd.read_csv(russell_path)
+        sector_map.update(
+            dict(
+                zip(
+                    russell["ticker"].astype(str).str.strip(),
+                    russell["sector"].astype(str).str.strip(),
+                )
+            )
+        )
+    old_metadata_path = processed_dir / "metadata.csv"
+    if old_metadata_path.exists():
+        old_metadata = pd.read_csv(old_metadata_path)
+        if "sector" in old_metadata.columns:
+            sector_map.update(
+                dict(
+                    zip(
+                        old_metadata["ticker"].astype(str).str.strip(),
+                        old_metadata["sector"].astype(str).str.strip(),
+                    )
+                )
+            )
+    universe = pd.DataFrame({"ticker": union})
+    universe["name"] = universe["ticker"].map(name_map).fillna("")
+    universe["sector"] = (
+        universe["ticker"].map(sector_map).fillna("Unknown").replace("", "Unknown")
+    )
 
     daily_prices, failed = download_prices_cached(
         universe["ticker"].tolist(),
@@ -826,10 +976,21 @@ def preprocess(
         .rename("last_valid_month")
     )
 
+    bounds = _membership_bounds(membership)
+    source_log: dict[str, str] = {}
+    if PRICE_SOURCE_LOG_PATH.exists():
+        log = pd.read_csv(PRICE_SOURCE_LOG_PATH)
+        source_log = dict(
+            zip(log["ticker"].astype(str), log["price_source"].astype(str))
+        )
+
     failed_set = set(failed)
     metadata_out = (
         universe.assign(
             yahoo_ticker=lambda frame: frame["ticker"].map(_yahoo_ticker),
+            price_source=lambda frame: frame["ticker"].map(source_log).fillna("none"),
+            member_from=lambda frame: frame["ticker"].map(bounds["member_from"]),
+            member_to=lambda frame: frame["ticker"].map(bounds["member_to"]),
             download_failed=lambda frame: frame["ticker"].isin(failed_set),
             n_valid_months=lambda frame: frame["ticker"]
             .map(n_obs_per_ticker)
@@ -843,7 +1004,7 @@ def preprocess(
             & frame["ticker"].isin(monthly_returns.columns),
             drop_reason=lambda frame: np.where(
                 frame["download_failed"],
-                "yfinance_failed",
+                "price_download_failed",
                 np.where(
                     frame["ticker"].isin(monthly_returns.columns),
                     "",
@@ -856,6 +1017,9 @@ def preprocess(
                 "name",
                 "sector",
                 "yahoo_ticker",
+                "price_source",
+                "member_from",
+                "member_to",
                 "retained",
                 "n_valid_months",
                 "first_valid_month",
@@ -865,15 +1029,23 @@ def preprocess(
         ]
     )
 
+    membership_out = (
+        membership[membership["ticker"].isin(union)]
+        .sort_values(["ticker", "start_date"])
+        .reset_index(drop=True)
+    )
+
     monthly_returns.to_csv(processed_dir / "monthly_returns.csv", index_label="date")
     excess_returns.to_csv(processed_dir / "excess_returns.csv", index_label="date")
     factors.to_csv(processed_dir / "factors.csv", index_label="date")
     metadata_out.to_csv(processed_dir / "metadata.csv", index=False)
+    membership_out.to_csv(processed_dir / "membership.csv", index=False)
 
     return {
         "monthly_returns": monthly_returns,
         "excess_returns": excess_returns,
         "factors": factors,
         "metadata": metadata_out,
+        "membership": membership_out,
         "failed_downloads": failed,
     }

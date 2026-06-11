@@ -221,7 +221,7 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
     `source, n_tickers, pct`.
   - Ovisnosti: F0.5
   - *Odstupanje:* Stooq endpoint s ovog stroja vraća anti-bot JS stranicu → fallback validiran mockom (kako task i propisuje); na stvarnoj uniji (1080 tickera) summary: yahoo 759 (70,3 %), none 321 (29,7 %), stooq 0 — pokrivenost delistanih mjeri se u F0.7.
-- [ ] **F0.7 — Izvještaj pokrivenosti po prozoru (tablica + slika)** (M)
+- [x] **F0.7 — Izvještaj pokrivenosti po prozoru (tablica + slika)** (M)
   - Opis: za svaki od 21 prozora izračunati: broj point-in-time članova, broj s
     valjanim cijenama, broj koji prolazi filtar ≥ 60 mj. treninga, postotke.
     **Obavezno** po zaključanoj odluci 1 — nepoznata pristranost mora postati
@@ -234,7 +234,8 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
     `train_window, n_members, n_with_prices, n_with_60m, pct_prices, pct_60m`
     i 21 retkom; PNG postoji.
   - Ovisnosti: F0.5, F0.6, F0.8
-- [ ] **F0.8 — Adaptacija `preprocess()` na novi univerzum i razdoblje** (M)
+  - *Odstupanje:* logika izdvojena u `membership_coverage_report` (`src/data.py`) radi ponovljivosti; `n_with_prices` = ≥1 valjani mjesečni prinos u prozoru treniranja; figura je linijski graf (članovi / s cijenama / ≥60 mj.). Mjereno: udio s ≥60 mj. raste s 54,75 % (prozor 2004-12) na 95,63 % (2024-12). Dodan `tests/test_coverage.py` (izvan popisa datoteka, podupire kriterij).
+- [x] **F0.8 — Adaptacija `preprocess()` na novi univerzum i razdoblje** (M)
   - Opis: `preprocess` (`src/data.py:423`) gradi panel preko **unije svih
     tickera koji su ikad članovi** u 2000.–2025., piše iste izlazne datoteke
     (`monthly_returns.csv`, `excess_returns.csv`, `factors.csv`, `metadata.csv`)
@@ -248,6 +249,7 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
     `factors.csv` isto; `metadata.csv` ima nove stupce; notebook 01 prolazi
     `nbconvert --execute` bez greške.
   - Ovisnosti: F0.5, F0.6
+  - *Odstupanje:* univerzum = `union_universe` (tickeri čiji se interval članstva preklapa s 2000.–2025.) → 1080 imena; nakon preuzimanja 757 zadržano (322 delistana bez Yahoo povijesti → `price_source=none`, mjereno u F0.7). `drop_reason` „yfinance_failed” → „price_download_failed” (sada pokriva yahoo+stooq). Sektor preuzet iz starog Russell popisa gdje postoji, inače „Unknown”. Cache je držao samo 2005+ pa je trebalo jednokratno `force_prices=True` (cijene od 1999-12 dohvaćene s Yahooa); korišteni `.venv/bin/python` i `.venv/bin/jupyter`.
 - [ ] **F0.9 — Sloj transakcijskih troškova** (M)
   - Opis: nove funkcije u `src/evaluation.py`:
     `turnover_per_window(weights_panel)` → jednostrani obrtaj
