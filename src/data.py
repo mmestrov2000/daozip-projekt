@@ -23,6 +23,7 @@ from src.utils import (
     PROJECT_END,
     PROJECT_START,
     RAW_DATA_DIR,
+    TABLES_DIR,
 )
 
 
@@ -33,6 +34,15 @@ IWB_HOLDINGS_URL = (
     "1467271812596.ajax?fileType=csv&fileName=IWB_holdings&dataType=fund"
 )
 RUSSELL_1000_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Russell_1000_Index"
+SP500_MEMBERSHIP_URL = (
+    "https://raw.githubusercontent.com/fja05680/sp500/master/"
+    "S%26P%20500%20Historical%20Components%20%26%20Changes%20(Updated).csv"
+)
+SP500_CURRENT_URL = "https://raw.githubusercontent.com/fja05680/sp500/master/sp500.csv"
+STOOQ_DAILY_URL = "https://stooq.com/q/d/l/"
+TICKER_OVERRIDES_PATH = RAW_DATA_DIR / "ticker_overrides.csv"
+SP500_MEMBERSHIP_PATH = RAW_DATA_DIR / "sp500_membership.csv"
+PRICE_SOURCE_LOG_PATH = RAW_DATA_DIR / "price_source.csv"
 FF5_MONTHLY_URL = (
     "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
     "F-F_Research_Data_5_Factors_2x3_CSV.zip"
@@ -226,6 +236,185 @@ def fetch_russell1000_tickers(
 
 
 # ---------------------------------------------------------------------------
+# Point-in-time članstvo S&P 500 (F0.4 grana b: javna rekonstrukcija)
+# ---------------------------------------------------------------------------
+
+
+def load_ticker_overrides(path: str | Path = TICKER_OVERRIDES_PATH) -> pd.DataFrame:
+    """Učitaj ručnu mapu poznatih kolizija/preimenovanja tickera.
+
+    Vraća DataFrame sa stupcima ``source_ticker, ticker, download_ticker, note``;
+    prazan DataFrame ako datoteka ne postoji. Komentar-retci (``#``) se preskaču.
+    """
+    path = Path(path)
+    columns = ["source_ticker", "ticker", "download_ticker", "note"]
+    if not path.exists():
+        return pd.DataFrame(columns=columns)
+    overrides = pd.read_csv(path, comment="#").reindex(columns=columns)
+    for column in columns:
+        overrides[column] = overrides[column].fillna("").astype(str).str.strip()
+    return overrides
+
+
+def _fetch_current_sp500_names(url: str = SP500_CURRENT_URL) -> dict[str, str]:
+    """Dohvati imena trenutnih članova S&P 500 (sp500.csv istog repozitorija)."""
+    try:
+        response = requests.get(url, timeout=60, headers={"User-Agent": _USER_AGENT})
+        response.raise_for_status()
+        current = pd.read_csv(StringIO(response.text))
+        return dict(
+            zip(
+                current["Symbol"].astype(str).str.strip(),
+                current["Security"].astype(str).str.strip(),
+            )
+        )
+    except Exception as error:
+        LOGGER.warning("Dohvat imena trenutnih članova nije uspio: %s", error)
+        return {}
+
+
+def fetch_sp500_membership(
+    output_path: str | Path | None = SP500_MEMBERSHIP_PATH,
+    url: str = SP500_MEMBERSHIP_URL,
+    raw_dir: str | Path = RAW_DATA_DIR,
+    overrides_path: str | Path = TICKER_OVERRIDES_PATH,
+) -> pd.DataFrame:
+    """Preuzmi i parsiraj point-in-time članstvo S&P 500 u dugu tablicu intervala.
+
+    Izvor (fja05680/sp500, „Updated” datoteka) drži po jedan redak po datumu
+    promjene s popisom svih članova na taj dan. Ovdje se snapshoti pretvaraju u
+    intervale ``ticker, name, start_date, end_date, source``: ticker koji nestane
+    na snapshotu ``d`` dobiva ``end_date = d − 1 dan``; prisutan u zadnjem
+    snapshotu ostaje otvoren (``end_date`` prazan). Ticker smije imati više
+    intervala (izlazak pa ponovni ulazak, npr. GM).
+
+    Izvor delistane firme vodi pod zadnjim OTC simbolom (LEHMQ, MTLQQ);
+    mapa iz ``ticker_overrides.csv`` vraća povijesne simbole (LEH, GM).
+    Imena se popunjavaju iz postojećeg ``data/processed/metadata.csv`` gdje
+    postoje, inače iz trenutnog ``sp500.csv``; za ostale delistane ostaju prazna.
+    """
+    raw_dir = Path(raw_dir)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    response = requests.get(url, timeout=120, headers={"User-Agent": _USER_AGENT})
+    response.raise_for_status()
+    raw_text = response.text
+
+    snapshots = pd.read_csv(StringIO(raw_text))
+    if not {"date", "tickers"}.issubset(snapshots.columns):
+        raise ValueError("Izvor članstva nema očekivane stupce 'date,tickers'.")
+    snapshots["date"] = pd.to_datetime(snapshots["date"])
+    snapshots = snapshots.sort_values("date").reset_index(drop=True)
+
+    overrides = load_ticker_overrides(overrides_path)
+    rename_map = {
+        row["source_ticker"]: row["ticker"]
+        for _, row in overrides.iterrows()
+        if row["source_ticker"] and row["ticker"]
+    }
+
+    open_intervals: dict[str, pd.Timestamp] = {}
+    rows: list[tuple[str, pd.Timestamp, pd.Timestamp]] = []
+    previous: set[str] = set()
+    for _, snapshot in snapshots.iterrows():
+        members = {
+            rename_map.get(symbol, symbol)
+            for symbol in (part.strip() for part in str(snapshot["tickers"]).split(","))
+            if symbol
+        }
+        date = snapshot["date"]
+        for ticker in members - previous:
+            open_intervals[ticker] = date
+        for ticker in previous - members:
+            rows.append((ticker, open_intervals.pop(ticker), date - pd.Timedelta(days=1)))
+        previous = members
+    for ticker, start in open_intervals.items():
+        rows.append((ticker, start, pd.NaT))
+
+    membership = pd.DataFrame(rows, columns=["ticker", "start_date", "end_date"])
+
+    name_map = _fetch_current_sp500_names()
+    metadata_path = Path(PROCESSED_DATA_DIR) / "metadata.csv"
+    if metadata_path.exists():
+        metadata = pd.read_csv(metadata_path)
+        name_map.update(
+            dict(
+                zip(
+                    metadata["ticker"].astype(str).str.strip(),
+                    metadata["name"].astype(str).str.strip(),
+                )
+            )
+        )
+    membership["name"] = membership["ticker"].map(name_map).fillna("")
+    membership["source"] = "fja05680_sp500_updated"
+    membership = (
+        membership[["ticker", "name", "start_date", "end_date", "source"]]
+        .sort_values(["ticker", "start_date"])
+        .reset_index(drop=True)
+    )
+
+    meta = {
+        "source": "fja05680_sp500_updated",
+        "source_url": url,
+        "downloaded_at_utc": datetime.now(timezone.utc).isoformat(),
+        "raw_sha256": hashlib.sha256(raw_text.encode("utf-8")).hexdigest(),
+        "n_snapshots": int(len(snapshots)),
+        "n_intervals": int(len(membership)),
+        "n_tickers": int(membership["ticker"].nunique()),
+    }
+    (raw_dir / "sp500_membership_meta.json").write_text(json.dumps(meta, indent=2))
+
+    if output_path is not None:
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        membership.to_csv(output_path, index=False)
+
+    return membership
+
+
+_MEMBERSHIP_CACHE: pd.DataFrame | None = None
+
+
+def _load_membership() -> pd.DataFrame:
+    """Lijeno učitaj tablicu članstva s diska (modularni cache)."""
+    global _MEMBERSHIP_CACHE
+    if _MEMBERSHIP_CACHE is None:
+        if not SP500_MEMBERSHIP_PATH.exists():
+            raise FileNotFoundError(
+                f"{SP500_MEMBERSHIP_PATH} ne postoji; pokreni fetch_sp500_membership()."
+            )
+        _MEMBERSHIP_CACHE = pd.read_csv(
+            SP500_MEMBERSHIP_PATH, parse_dates=["start_date", "end_date"]
+        )
+    return _MEMBERSHIP_CACHE
+
+
+def membership_on(
+    date: str | pd.Timestamp,
+    membership: pd.DataFrame | None = None,
+) -> list[str]:
+    """Vrati sortirane članove S&P 500 na zadani datum (point-in-time)."""
+    if membership is None:
+        membership = _load_membership()
+    date = pd.Timestamp(date)
+    active = membership[
+        (membership["start_date"] <= date)
+        & (membership["end_date"].isna() | (membership["end_date"] >= date))
+    ]
+    return sorted(active["ticker"].unique())
+
+
+def universe_for_window(window, membership: pd.DataFrame | None = None) -> list[str]:
+    """Vrati point-in-time univerzum za prozor: članovi na ``window.train_end``.
+
+    Prima ``RollingWindow`` (ili bilo što s atributom ``train_end``), odnosno
+    izravno datum — bez uvoza ``src.backtest`` u ovaj modul.
+    """
+    date = getattr(window, "train_end", window)
+    return membership_on(date, membership=membership)
+
+
+# ---------------------------------------------------------------------------
 # Obnovljiva predmemorija cijena po dionici
 # ---------------------------------------------------------------------------
 
@@ -279,6 +468,83 @@ def _download_single_ticker(
     return None
 
 
+def _stooq_symbol(ticker: str) -> str:
+    """Pretvori oznaku u Stooqov format za američke dionice (npr. BRK.B → brk-b.us)."""
+    return ticker.replace(".", "-").replace("/", "-").lower() + ".us"
+
+
+def _download_single_ticker_stooq(
+    ticker: str,
+    start: str,
+    end: str,
+    max_retries: int = 2,
+) -> pd.Series | None:
+    """Preuzmi dnevnu zaključnu cijenu sa Stooqa (sekundarni izvor, F0.6).
+
+    Stooqove povijesne cijene su prilagođene za splitove i dividende, pa se
+    stupac ``Close`` koristi kao ``adj_close``. Endpoint povremeno vraća
+    anti-bot HTML stranicu umjesto CSV-a — takav odgovor tretira se kao
+    neuspjeh (None), što ``download_prices_cached`` bilježi kao izvor ``none``.
+    """
+    params = {
+        "s": _stooq_symbol(ticker),
+        "d1": pd.Timestamp(start).strftime("%Y%m%d"),
+        "d2": pd.Timestamp(end).strftime("%Y%m%d"),
+        "i": "d",
+    }
+    last_error: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
+                STOOQ_DAILY_URL,
+                params=params,
+                timeout=60,
+                headers={"User-Agent": _USER_AGENT},
+            )
+            response.raise_for_status()
+        except Exception as error:
+            last_error = error
+            time.sleep(1.0 + attempt)
+            continue
+
+        text = response.text
+        if not text or text.lstrip().startswith("<") or not text.lstrip().startswith("Date"):
+            return None
+        try:
+            table = pd.read_csv(StringIO(text))
+        except Exception:
+            return None
+        if "Date" not in table.columns or "Close" not in table.columns or table.empty:
+            return None
+        series = pd.Series(
+            pd.to_numeric(table["Close"], errors="coerce").to_numpy(),
+            index=pd.DatetimeIndex(pd.to_datetime(table["Date"])).normalize(),
+            name="adj_close",
+        )
+        return series.dropna().sort_index()
+
+    if last_error is not None:
+        LOGGER.warning("Stooq preuzimanje %s nije uspjelo: %s", ticker, last_error)
+    return None
+
+
+def _update_price_source_log(
+    sources: dict[str, str],
+    source_log_path: str | Path,
+) -> None:
+    """Upiši/ažuriraj zapis ``ticker, price_source`` po tickeru (F0.6)."""
+    source_log_path = Path(source_log_path)
+    existing: dict[str, str] = {}
+    if source_log_path.exists():
+        log = pd.read_csv(source_log_path)
+        existing = dict(zip(log["ticker"].astype(str), log["price_source"].astype(str)))
+    existing.update(sources)
+    source_log_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        sorted(existing.items()), columns=["ticker", "price_source"]
+    ).to_csv(source_log_path, index=False)
+
+
 def download_prices_cached(
     tickers: Iterable[str],
     start: str | pd.Timestamp = PROJECT_START,
@@ -286,12 +552,19 @@ def download_prices_cached(
     cache_dir: str | Path = PRICE_CACHE_DIR,
     force: bool = False,
     max_workers: int = 8,
+    source_log_path: str | Path = PRICE_SOURCE_LOG_PATH,
+    overrides_path: str | Path = TICKER_OVERRIDES_PATH,
 ) -> tuple[pd.DataFrame, list[str]]:
     """Preuzmi dnevnu prilagođenu zaključnu cijenu po dionici u obnovljivu parquet predmemoriju.
 
     Zaseban parquet po dionici, ključan po simbolu, drži puni dnevni niz za
     razdoblje projekta. Postojeće predmemorije ponovno se koriste osim ako je ``force=True``. Promašaji
-    se preuzimaju paralelno putem ``max_workers`` dretvi. Oznake čije
+    se preuzimaju paralelno putem ``max_workers`` dretvi. Ako yfinance ne vrati
+    ništa, pokušava se Stooq kao sekundarni izvor (F0.6); izvor po tickeru
+    (``yahoo``/``stooq``/``none``) bilježi se u ``source_log_path``. Tickeri u
+    predmemoriji bez zapisa o izvoru naknadno se vode kao ``yahoo`` (svi su
+    povijesno preuzeti yfinanceom). Simbol za preuzimanje može se premostiti
+    stupcem ``download_ticker`` u ``ticker_overrides.csv``. Oznake čije
     preuzimanje ne uspije bilježe se i isključuju iz vraćenog DataFramea.
     Vraća ``(daily_prices, failed_tickers)``.
     """
@@ -307,9 +580,23 @@ def download_prices_cached(
     start_str = download_start.strftime("%Y-%m-%d")
     end_str = (_month_end(end) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 
+    overrides = load_ticker_overrides(overrides_path)
+    download_map = {
+        row["ticker"]: row["download_ticker"]
+        for _, row in overrides.iterrows()
+        if row["ticker"] and row["download_ticker"]
+    }
+
+    known_sources: dict[str, str] = {}
+    source_log_path = Path(source_log_path)
+    if source_log_path.exists():
+        log = pd.read_csv(source_log_path)
+        known_sources = dict(zip(log["ticker"].astype(str), log["price_source"].astype(str)))
+
     series_by_ticker: dict[str, pd.Series] = {}
     failed: list[str] = []
     misses: list[str] = []
+    sources: dict[str, str] = {}
 
     for ticker in project_tickers:
         cache_path = _cache_path(ticker, cache_dir)
@@ -318,22 +605,31 @@ def download_prices_cached(
                 cached = pd.read_parquet(cache_path)
                 if not cached.empty:
                     series_by_ticker[ticker] = cached["adj_close"]
+                    sources[ticker] = known_sources.get(ticker, "yahoo")
                     continue
             except Exception as error:
                 LOGGER.warning("Odbacujem nečitljivu predmemoriju za %s: %s", ticker, error)
                 cache_path.unlink(missing_ok=True)
         misses.append(ticker)
 
-    def worker(ticker: str) -> tuple[str, pd.Series | None]:
-        return ticker, _download_single_ticker(_yahoo_ticker(ticker), start_str, end_str)
+    def worker(ticker: str) -> tuple[str, pd.Series | None, str]:
+        download_ticker = download_map.get(ticker, ticker)
+        series = _download_single_ticker(_yahoo_ticker(download_ticker), start_str, end_str)
+        if series is not None and not series.empty:
+            return ticker, series, "yahoo"
+        series = _download_single_ticker_stooq(download_ticker, start_str, end_str)
+        if series is not None and not series.empty:
+            return ticker, series, "stooq"
+        return ticker, None, "none"
 
     if misses:
         completed_count = 0
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             futures = [pool.submit(worker, ticker) for ticker in misses]
             for future in as_completed(futures):
-                ticker, series = future.result()
+                ticker, series, source = future.result()
                 completed_count += 1
+                sources[ticker] = source
                 if series is None or series.empty:
                     failed.append(ticker)
                 else:
@@ -347,6 +643,8 @@ def download_prices_cached(
                         len(failed),
                     )
 
+    _update_price_source_log(sources, source_log_path)
+
     if not series_by_ticker:
         return pd.DataFrame(index=pd.DatetimeIndex([], name="date")), failed
 
@@ -355,6 +653,46 @@ def download_prices_cached(
     daily_prices = daily_prices.sort_index()
     daily_prices.index.name = "date"
     return daily_prices, failed
+
+
+def write_price_source_summary(
+    tickers: Iterable[str] | None = None,
+    source_log_path: str | Path = PRICE_SOURCE_LOG_PATH,
+    output_path: str | Path = TABLES_DIR / "00_price_source_summary.csv",
+) -> pd.DataFrame:
+    """Agregiraj zapis izvora cijena u tablicu ``source, n_tickers, pct`` (F0.6).
+
+    ``tickers`` ograničava sažetak na zadani univerzum (ticker bez zapisa u
+    logu broji se kao ``none``); bez argumenta sažima cijeli log.
+    """
+    source_log_path = Path(source_log_path)
+    known_sources: dict[str, str] = {}
+    if source_log_path.exists():
+        log = pd.read_csv(source_log_path)
+        known_sources = dict(zip(log["ticker"].astype(str), log["price_source"].astype(str)))
+
+    if tickers is None:
+        universe = sorted(known_sources)
+    else:
+        universe = list(dict.fromkeys(str(ticker).strip() for ticker in tickers))
+
+    per_ticker = pd.Series(
+        {ticker: known_sources.get(ticker, "none") for ticker in universe},
+        name="price_source",
+    )
+    summary = (
+        per_ticker.value_counts()
+        .rename_axis("source")
+        .reset_index(name="n_tickers")
+        .sort_values("source")
+        .reset_index(drop=True)
+    )
+    summary["pct"] = (100.0 * summary["n_tickers"] / max(len(universe), 1)).round(2)
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    summary.to_csv(output_path, index=False)
+    return summary
 
 
 def daily_to_monthly_returns(daily_prices: pd.DataFrame) -> pd.DataFrame:

@@ -23,6 +23,9 @@ data/raw/*
 !data/raw/.gitkeep
 !data/raw/russell1000_tickers.csv
 !data/raw/iwb_holdings_meta.json
+!data/raw/sp500_membership.csv
+!data/raw/sp500_membership_meta.json
+!data/raw/ticker_overrides.csv
 
 # Local/editor files
 .DS_Store

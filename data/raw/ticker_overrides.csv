@@ -1,0 +1,10 @@
+# Ručna mapa poznatih kolizija/preimenovanja tickera (F0.5/F0.6).
+# - source_ticker: simbol kako se pojavljuje u izvoru članstva (fja05680/sp500, Updated);
+#   izvor delistane firme vodi pod zadnjim OTC simbolom, a preimenovanja preživjelih
+#   (npr. FB->META) primjenjuje retroaktivno pa ih ovdje NE treba mapirati.
+# - ticker: kanonski povijesni simbol projekta (koristi se u tablici članstva i panelima).
+# - download_ticker: simbol za preuzimanje cijena ako se razlikuje od ticker (prazno = isti).
+# - note: objašnjenje u jednom retku.
+source_ticker,ticker,download_ticker,note
+MTLQQ,GM,,stari General Motors (Motors Liquidation); clan do 2009-06; simbol GM od 2013-06 koristi novi GM - intervali disjunktni
+LEHMQ,LEH,,Lehman Brothers; clan do 2008-09 (bankrot); Yahoo nema povijest

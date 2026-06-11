@@ -177,7 +177,7 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
   - Prihvaćanje: `grep -rn "supervised" src/ notebooks/ --include="*.py" --include="*.ipynb"`
     ne vraća aktivne importe; `archive/` sadrži obje datoteke i README.
   - Ovisnosti: —
-- [ ] **F0.4 — Provjera WRDS/CRSP pristupa (grananje plana)** (S)
+- [x] **F0.4 — Provjera WRDS/CRSP pristupa (grananje plana)** (S)
   - Opis: poslati upit mentoru/knjižnici PMF-a o institucionalnom WRDS pristupu.
     **Grananje:** (a) ako pristup postoji → F0.5 koristi CRSP point-in-time
     članstvo i delistane prinose (tada F0.6 postaje opcionalan); (b) ako ne (ili
@@ -189,7 +189,8 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
   - Prihvaćanje: u `PROJECT_SPEC.md` postoji odlomak „Izvor članstva” s odabranom
     granom i datumom odluke.
   - Ovisnosti: —
-- [ ] **F0.5 — Point-in-time sloj članstva u `src/data.py`** (L)
+  - *Odstupanje:* nema WRDS pristupa (potvrđeno 2026-06-11) → grana (b): `fja05680/sp500` (Updated) primarni, kontrola = spot-provjere poznatih događaja u `tests/test_membership.py` (prolaze, EODHD neaktiviran); odlomak „Izvor članstva” zapisan u minimalni stub `PROJECT_SPEC.md` (puni dokument ostaje F0.11).
+- [x] **F0.5 — Point-in-time sloj članstva u `src/data.py`** (L)
   - Opis: nove funkcije `fetch_sp500_membership()` (preuzima/parsira izvor iz
     F0.4 u dugu tablicu `ticker, name, start_date, end_date, source` →
     `data/raw/sp500_membership.csv`) i `membership_on(date)` /
@@ -206,7 +207,8 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
     nakon filtra ≥ 60 mj. treninga bit će manji, osobito u ranim prozorima, i
     test zbog toga ne smije pasti).
   - Ovisnosti: F0.1, F0.2, F0.4
-- [ ] **F0.6 — Rukovanje delistanim tickerima (Stooq dopuna)** (M)
+  - *Odstupanje:* izvor delistane vodi pod zadnjim OTC simbolom (LEHMQ, MTLQQ) pa je `data/raw/ticker_overrides.csv` (formalno F0.6) uveden već ovdje s mapom LEHMQ→LEH, MTLQQ→GM; GM zato ima dva disjunktna intervala (do 2009-06 i od 2013-06).
+- [x] **F0.6 — Rukovanje delistanim tickerima (Stooq dopuna)** (M)
   - Opis: u `download_prices_cached` (`src/data.py:282`) dodati sekundarni izvor:
     ako yfinance ne vrati ništa, pokušati Stooq (`{ticker}.US` dnevni CSV);
     zabilježiti `price_source ∈ {yahoo, stooq, none}` po tickeru. Dodati malu
@@ -218,6 +220,7 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
     tablica `outputs/tables/00_price_source_summary.csv` postoji sa stupcima
     `source, n_tickers, pct`.
   - Ovisnosti: F0.5
+  - *Odstupanje:* Stooq endpoint s ovog stroja vraća anti-bot JS stranicu → fallback validiran mockom (kako task i propisuje); na stvarnoj uniji (1080 tickera) summary: yahoo 759 (70,3 %), none 321 (29,7 %), stooq 0 — pokrivenost delistanih mjeri se u F0.7.
 - [ ] **F0.7 — Izvještaj pokrivenosti po prozoru (tablica + slika)** (M)
   - Opis: za svaki od 21 prozora izračunati: broj point-in-time članova, broj s
     valjanim cijenama, broj koji prolazi filtar ≥ 60 mj. treninga, postotke.
