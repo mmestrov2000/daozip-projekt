@@ -1,0 +1,34 @@
+# config.yaml — jedino mjesto za parametre projekta (nikad hardkodirati).
+# Učitava ga src/config.py; konstante u src/utils.py vežu se na ove vrijednosti.
+
+# Razdoblje projekta.
+project_start: "2000-01"
+project_end: "2025-12"
+
+# Konfiguracija kliznog prozora (mjeseci): trening / test / refit korak.
+train_lookback_months: 60
+test_horizon_months: 12
+refit_step_months: 12
+min_training_months: 60
+
+# Ograničenja portfelja.
+w_max: 0.02
+group_cap: 0.15
+
+# Overlay faktorske neutralnosti: ε-mreža.
+epsilon_grid: [0.0, 0.05, 0.10, 0.15]
+
+# Transakcijski troškovi (baznih bodova po jednostranom obrtaju).
+tc_bps: 10
+
+# Konfiguracija bootstrapa: prinosi / klasteri / veličina bloka (mjeseci).
+n_bootstrap_returns: 1000
+n_bootstrap_clusters: 500
+block_size_months: 12
+
+# Sjeme generatora slučajnih brojeva.
+random_seed: 42
+
+# Model Confidence Set.
+mcs_alpha: 0.10
+mcs_loss: "sq_demeaned"

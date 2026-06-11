@@ -7,6 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
+from src.config import CONFIG
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
@@ -19,26 +21,38 @@ FIGURES_DIR = OUTPUTS_DIR / "figures"
 TABLES_DIR = OUTPUTS_DIR / "tables"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 
+# Sve konstante vežu se na config.yaml (jedino mjesto za parametre).
+
 # Prozor projekta (odjeljak 4.3 specifikacije).
-PROJECT_START = "2005-01"
-PROJECT_END = "2025-12"
+PROJECT_START = CONFIG["project_start"]
+PROJECT_END = CONFIG["project_end"]
 
 # Konfiguracija kliznog prozora (odjeljak 4.4).
-TRAIN_LOOKBACK_MONTHS = 60
-TEST_HORIZON_MONTHS = 12
-REFIT_STEP_MONTHS = 12
-MIN_TRAINING_MONTHS = 60
+TRAIN_LOOKBACK_MONTHS = CONFIG["train_lookback_months"]
+TEST_HORIZON_MONTHS = CONFIG["test_horizon_months"]
+REFIT_STEP_MONTHS = CONFIG["refit_step_months"]
+MIN_TRAINING_MONTHS = CONFIG["min_training_months"]
 
 # Ograničenja portfelja (odjeljak 6).
-W_MAX = 0.02
-GROUP_CAP = 0.15
+W_MAX = CONFIG["w_max"]
+GROUP_CAP = CONFIG["group_cap"]
+
+# Overlay faktorske neutralnosti: ε-mreža.
+EPSILON_GRID = CONFIG["epsilon_grid"]
+
+# Transakcijski troškovi (baznih bodova po jednostranom obrtaju).
+TC_BPS = CONFIG["tc_bps"]
 
 # Konfiguracija bootstrapa (odjeljak 7).
-N_BOOTSTRAP_RETURNS = 1000
-N_BOOTSTRAP_CLUSTERS = 500
-BLOCK_SIZE_MONTHS = 12
+N_BOOTSTRAP_RETURNS = CONFIG["n_bootstrap_returns"]
+N_BOOTSTRAP_CLUSTERS = CONFIG["n_bootstrap_clusters"]
+BLOCK_SIZE_MONTHS = CONFIG["block_size_months"]
 
-RANDOM_SEED = 42
+# Model Confidence Set.
+MCS_ALPHA = CONFIG["mcs_alpha"]
+MCS_LOSS = CONFIG["mcs_loss"]
+
+RANDOM_SEED = CONFIG["random_seed"]
 
 
 def set_seed(seed: int = RANDOM_SEED) -> None:
