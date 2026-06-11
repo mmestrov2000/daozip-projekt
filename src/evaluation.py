@@ -547,6 +547,126 @@ def block_bootstrap_diff(
     }
 
 
+# ---------------------------------------------------------------------------
+# Sloj transakcijskih troškova (F0.9)
+# ---------------------------------------------------------------------------
+
+
+def turnover_per_window(weights_panel: pd.DataFrame) -> pd.DataFrame:
+    """Jednostrani obrtaj ``0.5·Σ_i |w_{i,t} − w_{i,t−1}|`` po (portfelj, prozor).
+
+    Ulaz je dugi panel težina koji proizvodi
+    :func:`src.backtest.run_walk_forward` (stupci
+    ``train_window, portfolio, ticker, weight``). Prozori se uspoređuju
+    kronološki po oznaci ``train_window`` (``YYYY-MM``). Za prvi prozor svakog
+    portfelja obrtaj je ``1.0`` (puna izgradnja portfelja iz gotovine).
+    Težine prozora poravnavaju se na uniji oznaka dionica; oznake koje nedostaju
+    u jednom prozoru tretiraju se kao težina 0.
+
+    Vraća DataFrame sa stupcima ``train_window, portfolio, turnover``.
+    """
+    required = {"train_window", "portfolio", "ticker", "weight"}
+    missing = required.difference(weights_panel.columns)
+    if missing:
+        raise ValueError(f"weights_panel nedostaju stupci: {sorted(missing)}")
+
+    rows: list[dict[str, object]] = []
+    for portfolio, group in weights_panel.groupby("portfolio", sort=True):
+        windows = sorted(
+            group["train_window"].unique(),
+            key=lambda label: pd.Period(label, freq="M"),
+        )
+        previous: pd.Series | None = None
+        for window in windows:
+            current = (
+                group.loc[group["train_window"] == window]
+                .set_index("ticker")["weight"]
+                .astype(float)
+            )
+            if previous is None:
+                turnover = 1.0
+            else:
+                union = previous.index.union(current.index)
+                prev_aligned = previous.reindex(union).fillna(0.0)
+                curr_aligned = current.reindex(union).fillna(0.0)
+                turnover = 0.5 * float((curr_aligned - prev_aligned).abs().sum())
+            rows.append(
+                {
+                    "train_window": str(window),
+                    "portfolio": str(portfolio),
+                    "turnover": float(turnover),
+                }
+            )
+            previous = current
+
+    return pd.DataFrame(rows, columns=["train_window", "portfolio", "turnover"])
+
+
+def apply_costs(
+    port_returns_panel: pd.DataFrame,
+    turnover: pd.DataFrame,
+    tc_bps: float,
+) -> pd.DataFrame:
+    """Oduzmi transakcijski trošak od prvog mjeseca svake testne godine.
+
+    Trošak po (portfelj, prozor) je ``turnover · tc_bps / 10000`` i skida se s
+    prinosa **prvog testnog mjeseca** tog prozora (``train_window + 1 mjesec``;
+    riješeno pitanje 2 — trošak samo na refit obrtaj, fiksne težine unutar
+    testne godine). ``port_returns_panel`` je široki panel mjesec × portfelj
+    koji proizvodi :func:`src.backtest.run_walk_forward`; ``turnover`` je izlaz
+    iz :func:`turnover_per_window`.
+
+    Vraća neto panel istog oblika kao ulaz.
+    """
+    required = {"train_window", "portfolio", "turnover"}
+    missing = required.difference(turnover.columns)
+    if missing:
+        raise ValueError(f"turnover nedostaju stupci: {sorted(missing)}")
+
+    net = port_returns_panel.copy()
+    if net.empty:
+        return net
+
+    index_periods = pd.PeriodIndex(pd.to_datetime(net.index), freq="M")
+    cost_rate = float(tc_bps) / 10000.0
+    for _, row in turnover.iterrows():
+        portfolio = str(row["portfolio"])
+        if portfolio not in net.columns:
+            continue
+        first_test_period = pd.Period(str(row["train_window"]), freq="M") + 1
+        match = np.flatnonzero(index_periods == first_test_period)
+        if match.size == 0:
+            continue
+        cost = float(row["turnover"]) * cost_rate
+        net.iloc[match[0], net.columns.get_loc(portfolio)] -= cost
+    return net
+
+
+def sharpe_ratio(
+    returns: pd.Series,
+    rf: float | pd.Series = 0.0,
+) -> float:
+    """Anualizirani Sharpeov omjer iz mjesečnih prinosa.
+
+    ``rf`` može biti skalar (mjesečna nerizična stopa) ili Series mjesečnih
+    nerizičnih stopa (npr. stupac ``RF`` iz FF5 faktora), koji se poravnava na
+    indeks ``returns``. Anualizacija: ``mean(excess)/std(excess) · √12``.
+    Vraća ``nan`` ako ima manje od dvije opservacije ili je standardna
+    devijacija nula.
+    """
+    series = returns.dropna().astype(float)
+    if len(series) < 2:
+        return float("nan")
+    if isinstance(rf, pd.Series):
+        excess = series - rf.reindex(series.index).fillna(0.0)
+    else:
+        excess = series - float(rf)
+    std = float(excess.std(ddof=1))
+    if std == 0 or not np.isfinite(std):
+        return float("nan")
+    return float(excess.mean() / std * np.sqrt(MONTHS_PER_YEAR))
+
+
 def block_bootstrap_metric(
     portfolio_returns_with_factors: pd.DataFrame,
     metric_fn,

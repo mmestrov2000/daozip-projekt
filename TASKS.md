@@ -250,7 +250,7 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
     `nbconvert --execute` bez greške.
   - Ovisnosti: F0.5, F0.6
   - *Odstupanje:* univerzum = `union_universe` (tickeri čiji se interval članstva preklapa s 2000.–2025.) → 1080 imena; nakon preuzimanja 757 zadržano (322 delistana bez Yahoo povijesti → `price_source=none`, mjereno u F0.7). `drop_reason` „yfinance_failed” → „price_download_failed” (sada pokriva yahoo+stooq). Sektor preuzet iz starog Russell popisa gdje postoji, inače „Unknown”. Cache je držao samo 2005+ pa je trebalo jednokratno `force_prices=True` (cijene od 1999-12 dohvaćene s Yahooa); korišteni `.venv/bin/python` i `.venv/bin/jupyter`.
-- [ ] **F0.9 — Sloj transakcijskih troškova** (M)
+- [x] **F0.9 — Sloj transakcijskih troškova** (M)
   - Opis: nove funkcije u `src/evaluation.py`:
     `turnover_per_window(weights_panel)` → jednostrani obrtaj
     `0.5·Σ_i |w_i,t − w_i,t−1|` po (portfelj, prozor) iz dugog panela
@@ -263,14 +263,15 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
   - Prihvaćanje: ručni primjer u testu (2 prozora, 3 imovine, poznat obrtaj)
     daje točan obrtaj i neto prinos na 10 bps; test prolazi.
   - Ovisnosti: F0.1, F0.2
-- [ ] **F0.10 — Validacija prozora 2000–2025** (S)
+  - *Odstupanje:* `turnover_per_window` vraća dugi DataFrame (`train_window, portfolio, turnover`); `apply_costs` mapira prozor → prvi testni mjesec preko `Period(train_window)+1` (= `test_start`) i prima `tc_bps` kao argument (ne čita iz configa); `sharpe_ratio` prihvaća `rf` kao skalar ili Series (npr. FF5 stupac `RF`).
+- [x] **F0.10 — Validacija prozora 2000–2025** (S)
   - Opis: smoke test da `generate_rolling_windows("2000-01","2025-12",60,12,12)`
     (`src/backtest.py:60`) vrati točno 21 prozor, prvi `label="2004-12"`
     (test 2005.), zadnji test završava 2025-12.
   - Datoteke: `tests/test_windows.py` (novo).
   - Prihvaćanje: test prolazi.
   - Ovisnosti: F0.1, F0.2
-- [ ] **F0.11 — Novi `PROJECT_SPEC.md`** (M)
+- [x] **F0.11 — Novi `PROJECT_SPEC.md`** (M)
   - Opis: napisati iznova (datoteka ne postoji u snapshotu): identitet rada,
     hipoteze H1–H3 doslovno, zaključane odluke 1–10, definicije alokatora
     (HRP/HERC/NCO; korelacijska i faktorska verzija, uklj. razliku
@@ -288,6 +289,7 @@ notebookovi 02–07, `reports/izvjestaj.tex`.
   - Prihvaćanje: dokument postoji i sadrži sve gore navedene sekcije; osoba bez
     ovog TASKS.md može iz njega razumjeti dizajn.
   - Ovisnosti: F0.4
+  - *Odstupanje:* TASKS.md ne enumerira „zaključane odluke 1–10” na jednom mjestu (reference koriste dva numeracijska sustava — RP1–7 iz §3 i eksplicitne anchore odluka 5/6/9/10); §9 spec-a rekonstruira kanonski popis 1–10 traceabilan na RP i narativ, uz zasebnu podsekciju K1–K3. Postojeći stub „Izvor članstva” (F0.4) zadržan doslovno kao §8.1.
 - [x] **F0.12 — Čišćenje necommitane izmjene `clustering_ext.py`** (S)
   - Opis: vratiti DBSCAN `eps` default s 1000.0 na 1.5
     (`src/clustering_ext.py:127`) — potvrđeno (riješeno pitanje 6).
