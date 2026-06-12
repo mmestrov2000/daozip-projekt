@@ -111,6 +111,20 @@ kao benchmark obitelj, ne baca se.
    rez hijerarhijskog stabla na K u oba kraka. **Dodatak:** odstupanje od
    izvornog k-meansa navodi se kao fusnota u replikacijskoj tablici (F1.6) i u
    `PROJECT_SPEC.md` (F0.11); k-means robusnost ostaje u F3.5.
+8. **Odabir K i benchmark obitelj bez grupnih capova** — *odlučeno 2026-06-12
+   (korisnik):* na novom univerzumu stara procedura odabira K (silueta + min.
+   veličina klastera ≥ 4 + K ≥ 7 zbog `group_cap`) ne daje nijedan izvediv K.
+   Odluka: (a) primarni K = najviša prosječna silueta kroz prozore **bez
+   dodatnih uvjeta** → K = 3, isti u oba prostora (vlastiti optimum po
+   prostoru ostaje robusnost F3.5); (b) grupno ograničeni benchmarki
+   (`min_var_sector`, `min_var_corr_cluster`, `min_var_factor_cluster`) i
+   hibridna `factor_cluster_neutral_eε` obitelj **uklanjaju se iz novih
+   panela** — benchmark obitelj = 1/N, `min_var`, čista `factor_neutral_eε`;
+   `group_cap` ostaje u configu samo kao legacy parametar, kod u
+   `src/portfolio.py` se ne briše. Time nijedan portfelj nije strukturno
+   neizvediv ni u jednom prozoru. Sužava odluke 5 i 10; reference na
+   `min_var_sector/corr_cluster/factor_cluster` stupce u F1.6/F2.x čitati u
+   skladu s ovom odlukom.
 
 ---
 
@@ -317,7 +331,7 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
 
 ### Taskovi
 
-- [ ] **F1.0 — Regeneracija beta, klastera i benchmark portfelja na novom univerzumu** (M)
+- [x] **F1.0 — Regeneracija beta, klastera i benchmark portfelja na novom univerzumu** (M)
   - Opis: pokrenuti notebookove 02, 03 i 05 na novim podacima iz Faze 0:
     `estimate_betas_all_windows` (`src/factors.py:131`) → `factor_exposures.csv`;
     postojeća procedura odabira K iz notebooka 02 (silueta + uvjeti uloživosti)
@@ -335,7 +349,8 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     neizvedive prozore u `portfolio_status`); `02_silhouette_by_k.csv` postoji s
     odabranim K.
   - Ovisnosti: F0.8
-- [ ] **F1.1 — `src/hierarchical.py`: HRP** (L)
+  - *Odstupanje:* stara procedura odabira K nije dala nijedan izvediv K na novom univerzumu → riješeno pitanje 8 (2026-06-12): K = silueta-optimum bez uvjeta → primarni K = 3 (≠ 7, dokumentirano); benchmark paneli = equal_weight + min_var (grupno ograničeni portfelji i hibrid uklonjeni po istoj odluci) pa su svi statusi „ok” u svih 21 prozora; `run_walk_forward` dobio parametar `portfolios` (datoteka `src/backtest.py` izvan popisa taska); `factor_exposures.csv` već regeneriran notebookom 01 u F0.8 (nije ponovno računan).
+- [x] **F1.1 — `src/hierarchical.py`: HRP** (L)
   - Opis: novi modul. Funkcije: `quasi_diagonal_order(linkage_matrix)` → poredak
     listova; `hrp_weights(Sigma, order)` → rekurzivna bisekcija s
     inverzno-varijančnom podjelom, **rizik uvijek iz proslijeđene Σ**
@@ -351,7 +366,8 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     `capped_weight_share` = 0 kad cap ne grize, > 0 na konstruiranom primjeru
     gdje grize.
   - Ovisnosti: F0.1, F0.2
-- [ ] **F1.1b — `src/hierarchical.py`: korelacijska stabla (single + ward)** (M)
+  - *Odstupanje:* `capped_weight_share` definiran kao udio ukupne težine koji u konačnim težinama leži na capu (tolerancija 1e-12), ne samo eksplicitno odsječene težine; `apply_w_max` defenzivno normalizira ulaz na Σw = 1.
+- [x] **F1.1b — `src/hierarchical.py`: korelacijska stabla (single + ward)** (M)
   - Opis: `correlation_distance(corr)` → d = √(½(1−ρ));
     `build_correlation_tree(returns_or_corr, linkage ∈ {"single","ward"})` →
     SciPy linkage matrica. `single` = vjerna replikacija López de Prada 2016
@@ -368,7 +384,8 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     single i ward daju različit poredak listova; `correlation_cluster` guard u
     `src/clustering.py` netaknut (`git diff` prazan za tu datoteku).
   - Ovisnosti: F0.1, F0.2
-- [ ] **F1.2 — `src/hierarchical.py`: HERC** (L)
+  - *Odstupanje:* konstruirani primjer za single≠ward = korelacija iz trofaktorskog modela s fiksnim sjemenom; bez `optimal_ordering` (vjernost izvornoj kvazidijagonalizaciji, za razliku od `factor_cluster`).
+- [x] **F1.2 — `src/hierarchical.py`: HERC** (L)
   - Opis: `herc_weights(Sigma, linkage_matrix, k)` — rez stabla na `k` klastera
     (`fcluster`, ista konvencija kao `src/clustering.py:103`), top-down podjela
     kapitala **niz stvarni dendrogram** po jednakom doprinosu riziku među
@@ -379,7 +396,8 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
   - Prihvaćanje: test: za k=2 i blok-dijagonalnu Σ s dva jednaka bloka podjela
     kapitala je 50/50; težine valjane (≥0, Σ=1, ≤ w_max).
   - Ovisnosti: F1.1
-- [ ] **F1.3 — `src/hierarchical.py`: NCO** (M)
+  - *Odstupanje:* rizik grane u top-down podjeli = zbroj rizika klastera u grani; potpis proširen defaultom `w_max=W_MAX` i vraća `(weights, capped_weight_share)` — isti oblik kao `nco_weights`.
+- [x] **F1.3 — `src/hierarchical.py`: NCO** (M)
   - Opis: `nco_weights(Sigma, labels, w_max)` — particija = oznake klastera
     (rez stabla na K; pretpostavka 7 / riješeno pitanje 7); min-var **unutar**
     svakog klastera ponovnom uporabom `min_variance` (`src/portfolio.py:178`) na
@@ -397,6 +415,7 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     analitičko rješenje po blokovima; nakon `apply_w_max` sve težine ≤ w_max uz
     Σw = 1.
   - Ovisnosti: F1.1
+  - *Odstupanje:* singleton klaster i među-klasterski korak za K=1 ne zovu optimizator (analitička težina 1.0); inače identično opisu, `min_variance` s `w_max=1.0`.
 - [ ] **F1.4 — Validacija protiv riskfolio-lib / skfolio** (M)
   - Opis: sintetički primjer (15 imovina, fiksno sjeme, poznata Σ iz faktorskog
     modela). Usporediti: naš `hrp_corr_single` (jednostruka veza — ista

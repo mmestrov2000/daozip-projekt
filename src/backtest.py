@@ -181,8 +181,12 @@ def run_walk_forward(
     w_max: float = W_MAX,
     group_cap: float = GROUP_CAP,
     min_training_months: int = MIN_TRAINING_MONTHS,
+    portfolios: Sequence[str] | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Pokreni backtest s kliznim prozorom kroz svih pet varijanti portfelja.
+    """Pokreni backtest s kliznim prozorom kroz odabrane varijante portfelja.
+
+    ``portfolios`` ograničava izbor na podskup ``PORTFOLIO_NAMES``; default
+    (``None``) pokreće svih pet varijanti (povijesno ponašanje).
 
     Po prozoru, univerzum za treniranje presjek je:
     - oznaka dionica s barem ``min_training_months`` nenedostajućih prinosa
@@ -201,6 +205,10 @@ def run_walk_forward(
       ``portfolio_status``     — dnevnik izvedivosti po prozoru i portfelju
     """
     cov_fn = _resolve_cov_estimator(cov_estimator)
+    requested = PORTFOLIO_NAMES if portfolios is None else tuple(portfolios)
+    unknown = set(requested) - set(PORTFOLIO_NAMES)
+    if unknown:
+        raise ValueError(f"Nepoznati portfelji: {sorted(unknown)}")
     sector_map = metadata.set_index("ticker")["sector"]
 
     weights_rows: list[dict[str, object]] = []
@@ -292,32 +300,39 @@ def run_walk_forward(
             ),
         }
 
-        try:
-            corr_groups = _lookup_groups(
-                correlation_clusters, window.label, universe, "correlation_cluster"
-            )
-
-            def _corr_solver(sigma=sigma, corr_groups=corr_groups):
-                return min_var_group_constrained(
-                    sigma, corr_groups, w_max=w_max, group_cap=group_cap
+        if "min_var_corr_cluster" in requested:
+            try:
+                corr_groups = _lookup_groups(
+                    correlation_clusters, window.label, universe, "correlation_cluster"
                 )
 
-            portfolio_solvers["min_var_corr_cluster"] = _corr_solver
-        except ValueError as error:
-            LOGGER.warning(
-                "Prozor %s: oznake korelacijskih klastera nedostupne (%s); "
-                "preskačem min_var_corr_cluster.",
-                window.label,
-                error,
-            )
-            status_rows.append(
-                {
-                    "train_window": window.label,
-                    "portfolio": "min_var_corr_cluster",
-                    "n_assets": len(universe),
-                    "status": f"skipped: {error}",
-                }
-            )
+                def _corr_solver(sigma=sigma, corr_groups=corr_groups):
+                    return min_var_group_constrained(
+                        sigma, corr_groups, w_max=w_max, group_cap=group_cap
+                    )
+
+                portfolio_solvers["min_var_corr_cluster"] = _corr_solver
+            except ValueError as error:
+                LOGGER.warning(
+                    "Prozor %s: oznake korelacijskih klastera nedostupne (%s); "
+                    "preskačem min_var_corr_cluster.",
+                    window.label,
+                    error,
+                )
+                status_rows.append(
+                    {
+                        "train_window": window.label,
+                        "portfolio": "min_var_corr_cluster",
+                        "n_assets": len(universe),
+                        "status": f"skipped: {error}",
+                    }
+                )
+
+        portfolio_solvers = {
+            name: solver
+            for name, solver in portfolio_solvers.items()
+            if name in requested
+        }
 
         for portfolio_name, solver in portfolio_solvers.items():
             weights, status = _solve_safely(portfolio_name, window.label, solver)

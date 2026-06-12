@@ -94,6 +94,16 @@ identično za sva tri alokatora i oba prostora. Uz težine se vraća
 `capped_weight_share` (udio težine na capu) po (portfelj, prozor), koji runner
 bilježi u status tablicu; ako cap često grize, navodi se u ograničenjima rada.
 
+**Izmjena 2026-06-12 (odluka korisnika; TASKS.md riješeno pitanje 8):**
+grupno ograničeni benchmarki (`min_var_sector`, `min_var_corr_cluster`,
+`min_var_factor_cluster`) i hibridna `factor_cluster_neutral_eε` obitelj
+uklonjeni su iz novih panela — na point-in-time S&P 500 univerzumu uvjet
+uloživosti `K × group_cap ≥ 1` ne dopušta silueta-optimalan K, a cap je
+naslijeđena pretpostavka stare verzije bez uloge u novom dizajnu. Jedino
+aktivno ograničenje novih panela je `w_max`; `group_cap` ostaje u
+`config.yaml` isključivo kao legacy parametar postojećeg koda
+(`min_var_group_constrained` se ne briše, ali se ne pokreće).
+
 ---
 
 ## 4. Alokatori
@@ -284,9 +294,11 @@ pitanja (RP, §3 TASKS.md, odluke 2026-06-10) ili na narativ dizajna.
    konfigurabilno; podjela posla MCS/DSR (vidi §7.4).
 4. **Commit politika izlaza** (RP4): committaju se samo finalne tablice/figure
    koje izvještaj citira; međupaneli ne.
-5. **Odabir primarnog K:** postojeća procedura iz notebooka 02 (silueta uz uvjete
-   uloživosti), ista za oba prostora; vlastiti-optimalni K po prostoru kao
-   robusnost (F3.5).
+5. **Odabir primarnog K:** procedura iz notebooka 02, ista za oba prostora;
+   vlastiti-optimalni K po prostoru kao robusnost (F3.5). *Izmjena 2026-06-12:*
+   K = najviša prosječna silueta kroz prozore **bez dodatnih uvjeta** — uvjeti
+   uloživosti (min. veličina klastera ≥ 4, K × group_cap ≥ 1) uklonjeni su
+   zajedno s grupno ograničenim benchmarcima (vidi §3.5); primarni K = 3.
 6. **Ledoit–Wolf Σ za sve korake rizika;** bete služe isključivo za izgradnju
    hijerarhije, ne za rizik.
 7. **NCO particija = rez stabla na K** u oba kraka (umjesto k-meansa iz izvornog
@@ -297,7 +309,9 @@ pitanja (RP, §3 TASKS.md, odluke 2026-06-10) ili na narativ dizajna.
    neutralnost): ostaje kao benchmark stupac, ne baca se.
 10. **Stari projekt se ugnježđuje kao benchmark obitelj,** ne baca se; nadzirano
     proširenje (notebook 08, `supervised.py`) arhivirano kao negativan rezultat;
-    izvještaj i README pišu se tek u zadnjoj fazi.
+    izvještaj i README pišu se tek u zadnjoj fazi. *Izmjena 2026-06-12:*
+    benchmark obitelj sužena na 1/N, `min_var` i čistu `factor_neutral_eε`
+    obitelj; grupno ograničene varijante i hibrid uklonjeni (vidi §3.5).
 
 **Kontrolne korekcije (uzročna usporedba):**
 
