@@ -9,7 +9,17 @@ from typing import Callable
 
 import numpy as np
 import pandas as pd
+from scipy.cluster.hierarchy import fcluster
 
+from src.data import membership_on
+from src.hierarchical import (
+    apply_w_max,
+    build_correlation_tree,
+    herc_weights,
+    hrp_weights,
+    nco_weights,
+    quasi_diagonal_order,
+)
 from src.portfolio import (
     equal_weight,
     ledoit_wolf_cov,
@@ -134,6 +144,39 @@ def _resolve_cov_estimator(
     raise ValueError(f"Nepoznat procjenitelj kovarijance: {cov_estimator!r}")
 
 
+def _prepare_membership(membership: pd.DataFrame | None) -> pd.DataFrame | None:
+    """Pripremi tablicu članstva za point-in-time presjek (datumski stupci).
+
+    Vraća ``None`` ako članstvo nije proslijeđeno (filtar se preskače), inače
+    kopiju s ``start_date``/``end_date`` kao datetime — neovisno o tome kako ih je
+    pozivatelj učitao.
+    """
+    if membership is None:
+        return None
+    membership = membership.copy()
+    membership["start_date"] = pd.to_datetime(membership["start_date"])
+    membership["end_date"] = pd.to_datetime(membership["end_date"])
+    return membership
+
+
+def _restrict_to_members(
+    universe: pd.Index,
+    membership: pd.DataFrame | None,
+    train_end: pd.Timestamp,
+) -> pd.Index:
+    """Reži univerzum prozora na point-in-time članove S&P 500 na ``train_end``.
+
+    Provedba zaključane metodologije (PROJECT_SPEC §3.1: „po prozoru se reže na
+    članstvo na datum train_end”) — bez ovog presjeka delistani/ponovo
+    iskorišteni tickeri ulaze u univerzum s artefaktnim prinosima. Kad
+    ``membership`` nije proslijeđen, presjek se preskače (npr. sintetički testovi).
+    """
+    if membership is None:
+        return universe
+    members = pd.Index(membership_on(train_end, membership))
+    return universe.intersection(members)
+
+
 def _lookup_groups(
     cluster_table: pd.DataFrame,
     window_label: str,
@@ -182,11 +225,16 @@ def run_walk_forward(
     group_cap: float = GROUP_CAP,
     min_training_months: int = MIN_TRAINING_MONTHS,
     portfolios: Sequence[str] | None = None,
+    membership: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Pokreni backtest s kliznim prozorom kroz odabrane varijante portfelja.
 
     ``portfolios`` ograničava izbor na podskup ``PORTFOLIO_NAMES``; default
     (``None``) pokreće svih pet varijanti (povijesno ponašanje).
+
+    ``membership`` (tablica intervala ``ticker, start_date, end_date``) uključuje
+    point-in-time presjek univerzuma na članove S&P 500 na ``train_end``
+    (PROJECT_SPEC §3.1); kad je ``None``, presjek se preskače.
 
     Po prozoru, univerzum za treniranje presjek je:
     - oznaka dionica s barem ``min_training_months`` nenedostajućih prinosa
@@ -205,6 +253,7 @@ def run_walk_forward(
       ``portfolio_status``     — dnevnik izvedivosti po prozoru i portfelju
     """
     cov_fn = _resolve_cov_estimator(cov_estimator)
+    membership = _prepare_membership(membership)
     requested = PORTFOLIO_NAMES if portfolios is None else tuple(portfolios)
     unknown = set(requested) - set(PORTFOLIO_NAMES)
     if unknown:
@@ -243,6 +292,7 @@ def run_walk_forward(
             .intersection(correlation_cluster_tickers)
             .intersection(sector_map.dropna().index)
         )
+        universe = _restrict_to_members(universe, membership, window.train_end)
         if len(universe) < 5:
             LOGGER.warning(
                 "Prozor %s ima samo %d prihvatljivih oznaka dionica; preskačem.",
@@ -420,9 +470,11 @@ def run_walk_forward(
 
 __all__ = [
     "PORTFOLIO_NAMES",
+    "HIERARCHICAL_PORTFOLIO_NAMES",
     "RollingWindow",
     "generate_rolling_windows",
     "run_walk_forward",
+    "run_hierarchical_walk_forward",
     "run_factor_neutral_sweep",
 ]
 
@@ -448,8 +500,12 @@ def run_factor_neutral_sweep(
     w_max: float = W_MAX,
     group_cap: float = GROUP_CAP,
     min_training_months: int = MIN_TRAINING_MONTHS,
+    membership: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Pokreni dodatne unaprijedne portfelje s izravnom faktorskom neutralnošću.
+
+    ``membership`` uključuje point-in-time presjek univerzuma na članove S&P 500
+    na ``train_end`` (PROJECT_SPEC §3.1); kad je ``None``, presjek se preskače.
 
     Za svaki ``ε`` u ``epsilons``:
 
@@ -469,6 +525,7 @@ def run_factor_neutral_sweep(
     ``(date × portfelj)``.
     """
     cov_fn = _resolve_cov_estimator(cov_estimator)
+    membership = _prepare_membership(membership)
     sector_map = metadata.set_index("ticker")["sector"]
 
     weights_rows: list[dict[str, object]] = []
@@ -495,6 +552,7 @@ def run_factor_neutral_sweep(
             .intersection(cluster_tickers)
             .intersection(sector_map.dropna().index)
         )
+        universe = _restrict_to_members(universe, membership, window.train_end)
         if len(universe) < 5:
             LOGGER.warning(
                 "Prozor %s: samo %d prihvatljivih oznaka dionica; preskačem prelet faktorske neutralnosti.",
@@ -650,4 +708,238 @@ def run_factor_neutral_sweep(
         "weights_panel": weights_panel,
         "port_returns_panel": port_returns_panel,
         "portfolio_status": status_panel,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Unaprijedni hod hijerarhijskih alokatora (F1.5)
+# ---------------------------------------------------------------------------
+
+
+HIERARCHICAL_PORTFOLIO_NAMES = (
+    "hrp_corr_single",
+    "hrp_corr_ward",
+    "herc_corr",
+    "nco_corr",
+)
+
+
+def run_hierarchical_walk_forward(
+    monthly_returns: pd.DataFrame,
+    factor_exposures: pd.DataFrame,
+    factor_clusters: pd.DataFrame,
+    correlation_clusters: pd.DataFrame,
+    metadata: pd.DataFrame,
+    windows: Iterable[RollingWindow],
+    k: int,
+    tree_space: str = "correlation",
+    cov_estimator: str | Callable[[pd.DataFrame], pd.DataFrame] = "ledoit_wolf",
+    w_max: float = W_MAX,
+    min_training_months: int = MIN_TRAINING_MONTHS,
+    membership: pd.DataFrame | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Pokreni backtest s kliznim prozorom za hijerarhijske alokatore (F1.5).
+
+    Po uzoru na :func:`run_walk_forward`: **isti presjek univerzuma**, **ista
+    Ledoit–Wolf Σ** (računa se jednom po prozoru i dijeli među alokatorima) i
+    **isti format izlaza** (``weights_panel``, ``port_returns_panel``,
+    ``portfolio_status``). Stablo/particiju gradi :mod:`src.hierarchical` iz
+    prozora treniranja, pa su jedina razlika prema benchmarcima same težine.
+
+    ``tree_space="correlation"`` (Faza 1) gradi korelacijska stabla iz F1.1b i
+    pokreće četiri alokatora: ``hrp_corr_single`` (vjerna replikacija López de
+    Prada 2016, jednostruka veza), ``hrp_corr_ward`` (krak kontrolirane
+    usporedbe, K1, Wardova veza), ``herc_corr`` (Wardova veza, rez na ``k``) i
+    ``nco_corr`` (Wardova veza, particija rezom na ``k``). ``tree_space="factor"``
+    je predviđen za Fazu 3 (F3.1) i ovdje još nije implementiran.
+
+    ``k`` je broj klastera za HERC i NCO iz primarne procedure odabira K (F1.0).
+    Status tablica dobiva stupac ``capped_weight_share`` po (portfelj, prozor)
+    (riješeno pitanje 1; ``NaN`` za neuspjele prozore).
+    """
+    if tree_space not in {"correlation", "factor"}:
+        raise ValueError(
+            f"tree_space mora biti 'correlation' ili 'factor', dobiveno {tree_space!r}."
+        )
+    if tree_space == "factor":
+        raise NotImplementedError(
+            "tree_space='factor' implementira se u Fazi 3 (F3.1); F1.5 pokriva "
+            "samo korelacijski prostor."
+        )
+    if not isinstance(k, int) or k < 1:
+        raise ValueError("k mora biti pozitivan cijeli broj.")
+
+    cov_fn = _resolve_cov_estimator(cov_estimator)
+    membership = _prepare_membership(membership)
+    sector_map = metadata.set_index("ticker")["sector"]
+
+    weights_rows: list[dict[str, object]] = []
+    returns_pieces: dict[str, list[pd.Series]] = {}
+    status_rows: list[dict[str, object]] = []
+
+    for window in windows:
+        train_returns = monthly_returns.loc[window.train_start : window.train_end]
+        valid_counts = train_returns.notna().sum(axis=0)
+        eligible_tickers = valid_counts[valid_counts >= min_training_months].index
+
+        factor_tickers = pd.Index(
+            factor_exposures.loc[
+                factor_exposures["train_window"] == window.label, "ticker"
+            ]
+        )
+        factor_cluster_tickers = pd.Index(
+            factor_clusters.loc[
+                factor_clusters["train_window"] == window.label, "ticker"
+            ]
+        )
+        correlation_cluster_tickers = pd.Index(
+            correlation_clusters.loc[
+                correlation_clusters["train_window"] == window.label, "ticker"
+            ]
+        )
+
+        universe = (
+            pd.Index(eligible_tickers)
+            .intersection(factor_tickers)
+            .intersection(factor_cluster_tickers)
+            .intersection(correlation_cluster_tickers)
+            .intersection(sector_map.dropna().index)
+        )
+        universe = _restrict_to_members(universe, membership, window.train_end)
+        if len(universe) < 5:
+            LOGGER.warning(
+                "Prozor %s ima samo %d prihvatljivih oznaka dionica; preskačem.",
+                window.label,
+                len(universe),
+            )
+            continue
+
+        train_panel = train_returns.loc[:, universe].dropna(axis=0, how="any")
+        if len(train_panel) < min_training_months:
+            LOGGER.warning(
+                "Prozor %s ima %d potpunih redaka treniranja nakon presjeka; "
+                "preskačem.",
+                window.label,
+                len(train_panel),
+            )
+            continue
+
+        try:
+            sigma = cov_fn(train_panel)
+        except Exception as error:
+            LOGGER.error(
+                "Procjenitelj kovarijance nije uspio u prozoru %s: %s",
+                window.label,
+                error,
+            )
+            continue
+        sigma = sigma.loc[universe, universe]
+
+        if k > len(universe):
+            LOGGER.warning(
+                "Prozor %s: k=%d > broja imovina %d; preskačem.",
+                window.label,
+                k,
+                len(universe),
+            )
+            continue
+
+        # Stabla se grade jednom po prozoru i dijele među alokatorima.
+        train_corr = train_panel.corr()
+        single_linkage = build_correlation_tree(train_corr, linkage="single")
+        ward_linkage = build_correlation_tree(train_corr, linkage="ward")
+
+        def _hrp_solver(linkage_matrix):
+            order = quasi_diagonal_order(linkage_matrix)
+            return apply_w_max(hrp_weights(sigma, order), w_max)
+
+        portfolio_solvers: dict[str, Callable[[], tuple[pd.Series, float]]] = {
+            "hrp_corr_single": lambda: _hrp_solver(single_linkage),
+            "hrp_corr_ward": lambda: _hrp_solver(ward_linkage),
+            "herc_corr": lambda: herc_weights(sigma, ward_linkage, k, w_max=w_max),
+            "nco_corr": lambda: nco_weights(
+                sigma,
+                fcluster(ward_linkage, t=k, criterion="maxclust"),
+                w_max=w_max,
+            ),
+        }
+
+        test_returns = monthly_returns.loc[
+            window.test_start : window.test_end, universe
+        ]
+
+        for portfolio_name, solver in portfolio_solvers.items():
+            try:
+                weights, capped_share = solver()
+                status = "ok"
+            except Exception as error:
+                LOGGER.warning(
+                    "Portfelj %s nije uspio u prozoru %s: %s",
+                    portfolio_name,
+                    window.label,
+                    error,
+                )
+                weights, capped_share, status = (
+                    None,
+                    float("nan"),
+                    f"failed: {type(error).__name__}: {error}",
+                )
+            status_rows.append(
+                {
+                    "train_window": window.label,
+                    "portfolio": portfolio_name,
+                    "n_assets": len(universe),
+                    "status": status,
+                    "capped_weight_share": float(capped_share),
+                }
+            )
+            if weights is None:
+                continue
+
+            weights = weights.reindex(universe).fillna(0.0)
+            for ticker, weight in weights.items():
+                weights_rows.append(
+                    {
+                        "train_window": window.label,
+                        "portfolio": portfolio_name,
+                        "ticker": ticker,
+                        "weight": float(weight),
+                    }
+                )
+
+            test_slice = test_returns.loc[:, weights.index].fillna(0.0)
+            returns_pieces.setdefault(portfolio_name, []).append(
+                test_slice.dot(weights)
+            )
+
+    weights_panel = pd.DataFrame(
+        weights_rows,
+        columns=["train_window", "portfolio", "ticker", "weight"],
+    )
+    portfolio_status = pd.DataFrame(
+        status_rows,
+        columns=[
+            "train_window",
+            "portfolio",
+            "n_assets",
+            "status",
+            "capped_weight_share",
+        ],
+    )
+
+    if returns_pieces:
+        columns: dict[str, pd.Series] = {}
+        for name in HIERARCHICAL_PORTFOLIO_NAMES:
+            if name in returns_pieces:
+                columns[name] = pd.concat(returns_pieces[name]).sort_index()
+        port_returns_panel = pd.DataFrame(columns).sort_index()
+        port_returns_panel.index.name = "date"
+        port_returns_panel.columns.name = "portfolio"
+    else:
+        port_returns_panel = pd.DataFrame()
+
+    return {
+        "weights_panel": weights_panel,
+        "port_returns_panel": port_returns_panel,
+        "portfolio_status": portfolio_status,
     }

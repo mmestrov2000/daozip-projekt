@@ -5,6 +5,11 @@ import pandas as pd
 import pytest
 from scipy.cluster.hierarchy import linkage as scipy_linkage
 
+from src.backtest import (
+    HIERARCHICAL_PORTFOLIO_NAMES,
+    generate_rolling_windows,
+    run_hierarchical_walk_forward,
+)
 from src.hierarchical import (
     apply_w_max,
     build_correlation_tree,
@@ -261,3 +266,102 @@ def test_nco_cap_binds():
     assert weights.max() <= 0.3 + 1e-12
     assert weights.sum() == pytest.approx(1.0)
     assert share > 0.0
+
+
+# ---------------------------------------------------------------------------
+# F1.5 — integracija u walk-forward
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_walk_forward_inputs(n_assets: int = 8, seed: int = 7):
+    """Mali sintetički ulazi (2 prozora) za smoke test runnera."""
+    rng = np.random.default_rng(seed)
+    tickers = [f"T{i}" for i in range(n_assets)]
+    n_months = 84  # 2000-01 .. 2006-12
+    index = (
+        pd.period_range("2000-01", periods=n_months, freq="M")
+        .to_timestamp(how="end")
+        .normalize()
+    )
+    common = rng.normal(scale=0.04, size=(n_months, 1))
+    loadings = rng.uniform(0.5, 1.5, size=(1, n_assets))
+    idio = rng.normal(scale=0.03, size=(n_months, n_assets))
+    monthly = pd.DataFrame(common * loadings + idio, index=index, columns=tickers)
+
+    windows = generate_rolling_windows("2000-01", "2006-12", 60, 12, 12)
+    labels = [w.label for w in windows]
+    factor_exposures = pd.DataFrame(
+        [{"train_window": lab, "ticker": t} for lab in labels for t in tickers]
+    )
+    factor_clusters = pd.DataFrame(
+        [
+            {"train_window": lab, "ticker": t, "factor_cluster": 1 + i % 3}
+            for lab in labels
+            for i, t in enumerate(tickers)
+        ]
+    )
+    correlation_clusters = pd.DataFrame(
+        [
+            {"train_window": lab, "ticker": t, "correlation_cluster": 1 + i % 3}
+            for lab in labels
+            for i, t in enumerate(tickers)
+        ]
+    )
+    metadata = pd.DataFrame(
+        {"ticker": tickers, "sector": [f"S{i % 2}" for i in range(n_assets)]}
+    )
+    return monthly, factor_exposures, factor_clusters, correlation_clusters, metadata, windows
+
+
+def test_run_hierarchical_walk_forward_structure():
+    """Runner vraća 4 stupca prinosa, čist status i valjane težine."""
+    monthly, fexp, fclust, cclust, meta, windows = _synthetic_walk_forward_inputs()
+
+    result = run_hierarchical_walk_forward(
+        monthly, fexp, fclust, cclust, meta, windows, k=3, w_max=0.5
+    )
+
+    panel = result["port_returns_panel"]
+    status = result["portfolio_status"]
+    assert list(panel.columns) == list(HIERARCHICAL_PORTFOLIO_NAMES)
+    assert len(panel) == 24  # 2 prozora × 12 testnih mjeseci
+    assert (status["status"] == "ok").all()
+    assert "capped_weight_share" in status.columns
+    assert status["capped_weight_share"].notna().all()
+
+    weight_sums = (
+        result["weights_panel"].groupby(["train_window", "portfolio"])["weight"].sum()
+    )
+    assert weight_sums.to_numpy() == pytest.approx(1.0)
+    assert result["weights_panel"]["weight"].max() <= 0.5 + 1e-9
+
+
+def test_run_hierarchical_walk_forward_factor_space_not_implemented():
+    """tree_space='factor' je rezerviran za Fazu 3 (F3.1)."""
+    monthly, fexp, fclust, cclust, meta, windows = _synthetic_walk_forward_inputs()
+    with pytest.raises(NotImplementedError):
+        run_hierarchical_walk_forward(
+            monthly, fexp, fclust, cclust, meta, windows, k=3, tree_space="factor"
+        )
+
+
+def test_run_hierarchical_walk_forward_membership_filter():
+    """Point-in-time presjek reže univerzum na članove na train_end (§3.1)."""
+    monthly, fexp, fclust, cclust, meta, windows = _synthetic_walk_forward_inputs()
+    tickers = list(monthly.columns)
+    members, nonmembers = tickers[:5], tickers[5:]
+    membership = pd.DataFrame(
+        [{"ticker": t, "start_date": "1999-01-31", "end_date": pd.NaT} for t in members]
+        + [
+            {"ticker": t, "start_date": "1999-01-31", "end_date": "2001-12-31"}
+            for t in nonmembers
+        ]
+    )
+
+    result = run_hierarchical_walk_forward(
+        monthly, fexp, fclust, cclust, meta, windows, k=3, w_max=0.5, membership=membership
+    )
+
+    used = set(result["weights_panel"]["ticker"])
+    assert used <= set(members)
+    assert not used & set(nonmembers)

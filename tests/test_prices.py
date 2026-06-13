@@ -3,9 +3,12 @@
 import pandas as pd
 import pytest
 
+import numpy as np
+
 import src.data as data_module
 from src.data import (
     _download_single_ticker_stooq,
+    clip_implausible_returns,
     download_prices_cached,
     write_price_source_summary,
 )
@@ -19,6 +22,27 @@ def _fake_series() -> pd.Series:
 def _read_log(path) -> dict[str, str]:
     log = pd.read_csv(path)
     return dict(zip(log["ticker"], log["price_source"]))
+
+
+def test_clip_implausible_returns_nans_only_out_of_band():
+    """Prinosi izvan [-90%, +300%] -> NaN; plauzibilni ekstremi i NaN ostaju."""
+    index = pd.period_range("2010-01", periods=4, freq="M").to_timestamp(how="end")
+    returns = pd.DataFrame(
+        {
+            "GLITCH": [1778.88, -0.999, 0.05, np.nan],  # skok pa povrat -> oba van pojasa
+            "REAL": [2.45, -0.50, 0.10, 0.02],  # AIG-tip ekstrem unutar pojasa
+        },
+        index=index,
+    )
+
+    clipped = clip_implausible_returns(returns, low=-0.90, high=3.0)
+
+    assert np.isnan(clipped.loc[index[0], "GLITCH"])  # +177888%
+    assert np.isnan(clipped.loc[index[1], "GLITCH"])  # -99.9% povrat
+    assert clipped.loc[index[2], "GLITCH"] == pytest.approx(0.05)
+    assert clipped["REAL"].tolist() == pytest.approx([2.45, -0.50, 0.10, 0.02])
+    # postojeći NaN ostaje NaN, ne diže iznimku
+    assert np.isnan(clipped.loc[index[3], "GLITCH"])
 
 
 def test_stooq_fallback_activates_when_yahoo_empty(monkeypatch, tmp_path):

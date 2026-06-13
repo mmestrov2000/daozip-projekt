@@ -15,6 +15,13 @@ min_training_months: 60
 w_max: 0.02
 group_cap: 0.15
 
+# Sanitacija mjesečnih prinosa: granice fizički mogućeg mjesečnog prinosa za
+# člana S&P 500; vrijednosti izvan [low, high] tretiraju se kao podatkovna
+# greška (npr. neadekvatno premošteni split, ponovo iskorišten ticker) i
+# postavljaju na NaN. Vidi src/data.py::clip_implausible_returns.
+monthly_return_clip_low: -0.90
+monthly_return_clip_high: 3.0
+
 # Overlay faktorske neutralnosti: ε-mreža.
 epsilon_grid: [0.0, 0.05, 0.10, 0.15]
 

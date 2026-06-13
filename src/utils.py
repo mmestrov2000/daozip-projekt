@@ -37,6 +37,10 @@ MIN_TRAINING_MONTHS = CONFIG["min_training_months"]
 W_MAX = CONFIG["w_max"]
 GROUP_CAP = CONFIG["group_cap"]
 
+# Sanitacija mjesečnih prinosa (granice fizički mogućeg; izvan -> NaN).
+MONTHLY_RETURN_CLIP_LOW = CONFIG["monthly_return_clip_low"]
+MONTHLY_RETURN_CLIP_HIGH = CONFIG["monthly_return_clip_high"]
+
 # Overlay faktorske neutralnosti: ε-mreža.
 EPSILON_GRID = CONFIG["epsilon_grid"]
 

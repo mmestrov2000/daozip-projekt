@@ -19,6 +19,8 @@ import yfinance as yf
 
 from src.utils import (
     MIN_TRAINING_MONTHS,
+    MONTHLY_RETURN_CLIP_HIGH,
+    MONTHLY_RETURN_CLIP_LOW,
     PRICE_CACHE_DIR,
     PROCESSED_DATA_DIR,
     PROJECT_END,
@@ -813,6 +815,28 @@ def daily_to_monthly_returns(daily_prices: pd.DataFrame) -> pd.DataFrame:
     return returns
 
 
+def clip_implausible_returns(
+    returns: pd.DataFrame,
+    low: float = MONTHLY_RETURN_CLIP_LOW,
+    high: float = MONTHLY_RETURN_CLIP_HIGH,
+) -> pd.DataFrame:
+    """Postavi na NaN mjesečne prinose izvan ``[low, high]`` (sanitacija podataka).
+
+    Mjesečni prinos člana S&P 500 izvan ``[low, high]`` (default
+    ``[-0.90, 3.0]`` iz ``config.yaml``) fizički je nemoguć i potječe iz
+    podatkovne greške: neadekvatno premošten split, jednodnevni pogrešan ispis
+    cijene (uzorak „skok pa povrat”) ili ponovo iskorišten ticker. Takve
+    vrijednosti postaju ``NaN`` (imovina ne doprinosi tom mjesecu) umjesto da
+    se ukliještenjem ubaci lažan prinos. Granica je konzervativna: stvarni
+    ekstremi unutar pojasa (npr. AIG +245 % u 2009-08, kratki skvíz) ostaju.
+
+    Vraća kopiju; postojeći ``NaN`` ostaju ``NaN``.
+    """
+    if returns.empty:
+        return returns
+    return returns.where((returns >= low) & (returns <= high))
+
+
 # ---------------------------------------------------------------------------
 # Fama-French petfaktorski podaci
 # ---------------------------------------------------------------------------
@@ -958,6 +982,10 @@ def preprocess(
     common_index = monthly_returns.index.intersection(factors.index)
     monthly_returns = monthly_returns.loc[common_index].sort_index()
     factors = factors.loc[common_index].sort_index()
+
+    # Sanitacija: fizički nemogući mjesečni prinosi (split/ponovo iskorišten
+    # ticker/pogrešan ispis cijene) postaju NaN prije izvedenih veličina.
+    monthly_returns = clip_implausible_returns(monthly_returns)
 
     # Izbaci oznake koje su potpuno NaN kroz prozor projekta (preuzimanje nije uspjelo
     # usred niza, oznaka je prenova itd.).

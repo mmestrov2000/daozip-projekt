@@ -61,6 +61,14 @@ Point-in-time S&P 500, razdoblje projekta 2000-01..2025-12. Panel se gradi preko
 **unije svih tickera koji su ikad članovi** u tom razdoblju (`union_universe`),
 a po prozoru se reže na članstvo na datum `train_end`.
 
+**Provedba (2026-06-13):** point-in-time presjek **provodi se u runnerima**
+(`run_walk_forward`, `run_factor_neutral_sweep`, `run_hierarchical_walk_forward`)
+preko parametra `membership`: univerzum prozora siječe se s
+`membership_on(train_end)`. Bez tog presjeka delistani/ponovo iskorišteni
+tickeri (npr. GDW, TIE) ulazili su u univerzum godinama izvan članstva i nosili
+artefaktne prinose (~32 % univerzuma bili su nečlanovi). Notebooki 03/05/09
+prosljeđuju `data/processed/membership.csv`.
+
 ### 3.2 Klizni prozori
 
 `generate_rolling_windows` (`src/backtest.py`) s parametrima iz `config.yaml`:
@@ -292,6 +300,18 @@ premošćivanje simbola pri preuzimanju cijena (F0.6).
 tickeru. Parquet predmemorija po tickeru + retry. Pokrivenost po prozoru mjeri se
 i izvještava (`00_membership_coverage.csv`, `00_price_source_summary.png`) —
 nepoznata pristranost preživjelih postaje izmjerena veličina.
+
+**Sanitacija prinosa (2026-06-13):** `clip_implausible_returns` (`src/data.py`,
+poziva se u `preprocess`) postavlja na `NaN` mjesečne prinose izvan
+`[monthly_return_clip_low, monthly_return_clip_high] = [-0.90, 3.0]` (config) —
+fizički nemoguće vrijednosti iz neadekvatno premoštenih splitova, jednodnevnih
+pogrešnih ispisa cijene (uzorak „skok pa povrat”, npr. TIE +177 888 % u 2010-02)
+ili ponovo iskorištenih tickera. Pojas je konzervativan: stvarni ekstremi unutar
+njega ostaju (npr. AIG +245 % u 2009-08, kratki skvíz). Presjek članstva i
+sanitacija su komplementarni: presjek miče nečlanove, clip miče preostale
+unutar-člana podatkovne greške (293 ćelije, 0,13 %). Bete i klasteri provjereno
+su netaknuti (nijedna korištena član-beta nije imala izvanpojasni prinos u svom
+prozoru treniranja), pa se `factor_exposures.csv`/klasteri ne regeneriraju.
 
 ### 8.3 Faktori
 

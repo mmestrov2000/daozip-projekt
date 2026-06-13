@@ -134,7 +134,7 @@ kao benchmark obitelj, ne baca se.
 |---|---|---|---|
 | Yahoo nema cijene za delistane tickere (LEH, WB, …) → pristranost preživjelih ostaje djelomična | visoka | srednji | Stooq fallback (F0.6); pokrivenost po prozoru kao tablica+slika (F0.7) → nepoznata pristranost postaje izmjerena veličina; ograničenje u izvještaju |
 | Pogreške u javnoj rekonstrukciji članstva S&P 500 | srednja | visok | spot-provjere poznatih događaja (F0.4); usporedba dvaju javnih izvora; opcija EODHD (riješeno pitanje 5) |
-| Ponovna uporaba tickera (isti simbol, druga firma kroz vrijeme) | srednja | srednji | filtar `first_valid_month`/`last_valid_month` u metadata + ručna lista poznatih kolizija u F0.6; postojeći filtri kvalitete beta (`estimate_betas_window`) hvataju većinu artefakata |
+| Ponovna uporaba tickera (isti simbol, druga firma kroz vrijeme) | srednja | srednji | filtar `first_valid_month`/`last_valid_month` u metadata + ručna lista poznatih kolizija u F0.6; postojeći filtri kvalitete beta (`estimate_betas_window`) hvataju većinu artefakata. **Riješeno 2026-06-13:** planirani filtar nije bio uključen u cjevovod (samo u F0.7 dijagnostiku) → ~32 % univerzuma bili su nečlanovi (GDW +632 760 %, TIE…). Provedeno: (a) point-in-time presjek članstva u runnerima (parametar `membership`, PROJECT_SPEC §3.1); (b) `clip_implausible_returns` u `preprocess` ([-90 %, +300 %]→NaN) za unutar-člana podatkovne greške. |
 | riskfolio-lib/skfolio se ne instaliraju uz pinove `numpy 2.4 / pandas 3.0` | srednja | nizak | validacija u zasebnom venv-u; dovoljna je jednokratna usporedba na sintetičkom primjeru (F1.4), biblioteke nisu runtime ovisnost |
 | Numeričke razlike vlastitih HRP/HERC/NCO naspram biblioteka (različite varijante algoritama) | visoka | srednji | sintetički test s dokumentiranom tolerancijom (F1.4); razlike se objašnjavaju u `PROJECT_SPEC.md`, ne skrivaju |
 | Trajanje backtesta (21 prozor × ~12 portfelja × ε-mreža × 2 norme) | srednja | srednji | Σ i stabla se računaju jednom po prozoru i dijele među alokatorima (F1.5); paneli se spremaju u CSV pa se faze 2–4 ne preračunavaju |
@@ -431,7 +431,7 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     (metoda, biblioteka, max |Δw|, objašnjenje) postoji.
   - Ovisnosti: F1.1, F1.1b, F1.2, F1.3
   - *Odstupanje:* zaseban `.venv_libs` (Python 3.11) — `riskfolio-lib 7.3.0` i `skfolio 0.20.1` instaliraju se uz numpy 2.4.6 / pandas 2.3.3 (pandas < pin 3.0.3, ali src radi). HRP single ↔ riskfolio = 2.8e-17 (≤ 1e-6); NCO ward ↔ riskfolio = 2.3e-5 (tolerancija QP rješavača, K=4 oba kraka); HERC ward ↔ **skfolio** = 3.7e-2 jer je riskfolio-lib 7.3.0 HERC put neispravan (upstream bug `_hierarchical_recursive_bisection`) — razlika je metodološka (1/σ vs rekurzivni ERC, K poravnat); dodatni red HRP ↔ skfolio = 1.3e-1 (skfolio bisektira po dendrogramu, ne seriiranom poretku). CSV ima 4 retka i stupce `method, linkage, library, max_abs_weight_diff, tolerance, explanation`. U glavnom venv-u 4 testa se preskaču (biblioteke odsutne), suite ostaje zelen.
-- [ ] **F1.5 — Integracija u walk-forward** (L)
+- [x] **F1.5 — Integracija u walk-forward** (L)
   - Opis: nova funkcija `run_hierarchical_walk_forward(...)` u `src/backtest.py`
     po uzoru na `run_walk_forward` (`src/backtest.py:173`): isti presjek
     univerzuma, ista Ledoit–Wolf Σ (jednom po prozoru, dijeli se među
@@ -451,7 +451,8 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     `hrp_corr_single, hrp_corr_ward, herc_corr, nco_corr` s ≥ 240 mjeseci;
     status log bez neobjašnjenih `failed` i sa stupcem `capped_weight_share`.
   - Ovisnosti: F1.0, F1.1, F1.1b, F1.2, F1.3
-- [ ] **F1.6 — Replikacijska tablica** (M)
+  - *Odstupanje:* `K` za HERC/NCO čita se iz `02_silhouette_by_k.csv` (argmax prosječne siluete → K=3; F1.0), ne hardkodira; Σ + single/ward stabla grade se jednom po prozoru i dijele među alokatorima. `tree_space="factor"` diže `NotImplementedError` (rezervirano za F3.1; F1.5 pokriva samo korelacijski prostor). Dodan smoke test u `tests/test_hierarchical.py` (izvan popisa datoteka, podupire kriterij): struktura izlaza + `capped_weight_share` + factor-grana `NotImplementedError`. Notebook generiran jednokratnim helperom koji je potom uklonjen (bez `scripts/`, pretpostavka 4).
+- [x] **F1.6 — Replikacijska tablica** (M)
   - Opis: tablica s OOS godišnjom volatilnošću, Sharpeom (bruto i neto na
     10 bps), maksimalnim drawdownom, obrtajem i `n_months` za: 1/N, min_var,
     hrp_corr_single, hrp_corr_ward, herc_corr, nco_corr (+ postojeći stupci
@@ -470,6 +471,7 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     i ≥ 9 redaka; obje fusnote prisutne (markdown ćelija notebooka + bilješka u
     tablici za izvještaj); figura postoji.
   - Ovisnosti: F0.9, F1.5
+  - *Odstupanje:* „postojeći stupci radi kontinuiteta” = aktualna benchmark obitelj po izmjeni odluke 10 (2026-06-12, RP8): 1/N, min_var i `factor_neutral_eε` obitelj (grupno ograničeni `min_var_sector/corr_cluster/factor_cluster` uklonjeni iz novih panela) → 10 redaka (≥ 9). `turnover` stupac = prosječni jednostrani obrtaj kroz prozore (uklj. prvi = 1.0); `ann_vol`/`max_drawdown` iz bruto prinosa, obje Sharpe (bruto/neto) zasebno. Fusnote i u `outputs/tables/09_replication_summary_notes.md`. **Uzvodni data bug riješen 2026-06-13** (zaseban task, odobrio korisnik): point-in-time presjek članstva u runnerima + `clip_implausible_returns` → paneli regenerirani na čistim podacima (`equal_weight` god. vol 309 %→16,9 %, sve god. vol sad 12–17 %, Sharpe 0,60–0,65). Vidi PROGRESS.md (2026-06-13 membership-fix) i PROJECT_SPEC §3.1/§8.2.
 - [ ] **F1.7 — Model Confidence Set (Hansen–Lunde–Nason 2011)** (L)
   - Opis: nova funkcija `model_confidence_set(returns_panel, loss="sq_demeaned",
     alpha, n_bootstraps, block_size, seed)` u `src/evaluation.py`: gubitak po
