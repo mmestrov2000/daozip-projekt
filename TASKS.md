@@ -416,7 +416,7 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     Σw = 1.
   - Ovisnosti: F1.1
   - *Odstupanje:* singleton klaster i među-klasterski korak za K=1 ne zovu optimizator (analitička težina 1.0); inače identično opisu, `min_variance` s `w_max=1.0`.
-- [ ] **F1.4 — Validacija protiv riskfolio-lib / skfolio** (M)
+- [x] **F1.4 — Validacija protiv riskfolio-lib / skfolio** (M)
   - Opis: sintetički primjer (15 imovina, fiksno sjeme, poznata Σ iz faktorskog
     modela). Usporediti: naš `hrp_corr_single` (jednostruka veza — ista
     konfiguracija kao biblioteke) naspram `riskfolio.HCPortfolio(model="HRP")` i/ili
@@ -430,6 +430,7 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
   - Prihvaćanje: HRP razlika ≤ 1e-6 na sintetičkom primjeru; CSV s usporedbom
     (metoda, biblioteka, max |Δw|, objašnjenje) postoji.
   - Ovisnosti: F1.1, F1.1b, F1.2, F1.3
+  - *Odstupanje:* zaseban `.venv_libs` (Python 3.11) — `riskfolio-lib 7.3.0` i `skfolio 0.20.1` instaliraju se uz numpy 2.4.6 / pandas 2.3.3 (pandas < pin 3.0.3, ali src radi). HRP single ↔ riskfolio = 2.8e-17 (≤ 1e-6); NCO ward ↔ riskfolio = 2.3e-5 (tolerancija QP rješavača, K=4 oba kraka); HERC ward ↔ **skfolio** = 3.7e-2 jer je riskfolio-lib 7.3.0 HERC put neispravan (upstream bug `_hierarchical_recursive_bisection`) — razlika je metodološka (1/σ vs rekurzivni ERC, K poravnat); dodatni red HRP ↔ skfolio = 1.3e-1 (skfolio bisektira po dendrogramu, ne seriiranom poretku). CSV ima 4 retka i stupce `method, linkage, library, max_abs_weight_diff, tolerance, explanation`. U glavnom venv-u 4 testa se preskaču (biblioteke odsutne), suite ostaje zelen.
 - [ ] **F1.5 — Integracija u walk-forward** (L)
   - Opis: nova funkcija `run_hierarchical_walk_forward(...)` u `src/backtest.py`
     po uzoru na `run_walk_forward` (`src/backtest.py:173`): isti presjek

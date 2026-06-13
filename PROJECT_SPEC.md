@@ -160,6 +160,27 @@ Lance–Williamsovim opravdanjem (standardna praksa u HERC literaturi).
 njezin rez na K u NCO. Univerzum, Σ i `w_max` identični su korelacijskoj grani —
 jedina promjena je ulazno stablo/particija.
 
+### 4.6 Validacija protiv biblioteka (F1.4)
+
+Vlastite implementacije provjerene su na sintetičkom primjeru (15 imovina, Σ =
+uzoračka kovarijanca prinosa iz faktorskog modela, fiksno sjeme) naspram
+referentnih biblioteka. Biblioteke su **validacijska, a ne runtime ovisnost**:
+žive u zasebnom venv-u (`riskfolio-lib 7.3.0`, `skfolio 0.20.1`; registar rizika),
+a testovi (`tests/test_validation_libs.py`) preskaču se ako biblioteka nije
+prisutna. Maksimalna apsolutna razlika težina (`outputs/tables/09_validation_vs_libraries.csv`):
+
+| Metoda | Veza | Biblioteka | max \|Δw\| | Izvor razlike |
+|---|---|---|---|---|
+| HRP | single | riskfolio-lib | ≈ 2.8e-17 | Identičan algoritam (López de Prado 2016): d=√(½(1−ρ)), single linkage, `leaves_list` poredak, IVP rekurzivna bisekcija dijeljenjem seriiranog poretka napola → slaganje na razini strojne preciznosti (≤ 1e-6). |
+| NCO | ward | riskfolio-lib | ≈ 2.3e-5 | Identičan algoritam (López de Prado 2019): min-var unutar klastera, reducirana kovarijanca, min-var među klasterima na istom rezu stabla (K=4). Razlika = isključivo tolerancija QP rješavača (CLARABEL). |
+| HERC | ward | skfolio | ≈ 3.7e-2 | Broj klastera poravnat na skfoliov izbor pa razlika **nije** u K, nego u pravilu alokacije: naš HERC (Raffinot 2018) dijeli kapital niz dendrogram po zbroju varijanci klastera + naivni risk parity (1/σ) unutar klastera, dok skfolio rekurzivno izjednačava doprinos varijanci. |
+| HRP | single | skfolio | ≈ 1.3e-1 | Ista udaljenost i veza, ali skfolio bisektira po **strukturi dendrograma** (čvor → dvije grane) umjesto dijeljenjem seriiranog poretka napola kako propisuje izvornik → sustavna razlika (druga varijanta algoritma, ne greška). |
+
+HRP je referenca za strogu provjeru (≤ 1e-6) jer riskfolio implementira identičan
+izvornikov algoritam; NCO se slaže do tolerancije rješavača. Za HERC je referenca
+**skfolio** jer je riskfolio-lib 7.3.0 HERC put neispravan (upstream bug u potpisu
+`_hierarchical_recursive_bisection`); razlika u težinama je metodološka i očekivana.
+
 ---
 
 ## 5. Overlay QP (Faza 4)
