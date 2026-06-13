@@ -27,6 +27,9 @@ REPORTS_DIR = PROJECT_ROOT / "reports"
 PROJECT_START = CONFIG["project_start"]
 PROJECT_END = CONFIG["project_end"]
 
+# Početak unaprijednog hoda (odvojen od PROJECT_START; vidi config.yaml).
+BACKTEST_START = CONFIG["backtest_start"]
+
 # Konfiguracija kliznog prozora (odjeljak 4.4).
 TRAIN_LOOKBACK_MONTHS = CONFIG["train_lookback_months"]
 TEST_HORIZON_MONTHS = CONFIG["test_horizon_months"]
@@ -36,6 +39,9 @@ MIN_TRAINING_MONTHS = CONFIG["min_training_months"]
 # Ograničenja portfelja (odjeljak 6).
 W_MAX = CONFIG["w_max"]
 GROUP_CAP = CONFIG["group_cap"]
+
+# Primarni broj klastera za HERC/NCO (HRP je K-neovisan; vidi config.yaml).
+PRIMARY_K = CONFIG["primary_k"]
 
 # Sanitacija mjesečnih prinosa (granice fizički mogućeg; izvan -> NaN).
 MONTHLY_RETURN_CLIP_LOW = CONFIG["monthly_return_clip_low"]

@@ -481,7 +481,10 @@ def membership_coverage_report(
     if windows is None:
         from src.backtest import generate_rolling_windows
 
-        windows = generate_rolling_windows()
+        # Dijagnostika pokrivenosti namjerno pokriva PUNO razdoblje projekta
+        # (2000—2025, 21 prozor), ne podrezani backtest prozor — upravo gradijent
+        # pokrivenosti u ranim godinama opravdava podrezivanje (PROJECT_SPEC §3.1).
+        windows = generate_rolling_windows(PROJECT_START, PROJECT_END)
 
     records: list[dict] = []
     for window in windows:

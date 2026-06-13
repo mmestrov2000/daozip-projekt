@@ -1,9 +1,17 @@
 # config.yaml — jedino mjesto za parametre projekta (nikad hardkodirati).
 # Učitava ga src/config.py; konstante u src/utils.py vežu se na ove vrijednosti.
 
-# Razdoblje projekta.
+# Razdoblje projekta (raspon preuzimanja podataka).
 project_start: "2000-01"
 project_end: "2025-12"
+
+# Početak unaprijednog hoda (treniranje prvog prozora). Odvojen od project_start:
+# podaci se i dalje preuzimaju od 2000-01, ali backtest počinje kasnije kako bi
+# se izbjegle rane godine s niskom pokrivenošću članstva (54—70 %) i jakom
+# pristranošću preživjelih. backtest_start="2008-01" → prvi train_end 2012-12 →
+# prva testna godina 2013, zadnja 2025 (13 prozora, pokrivenost 70→96 %).
+# Vidi PROJECT_SPEC §3.1/§3.2 (korekcija 2026-06-13).
+backtest_start: "2008-01"
 
 # Konfiguracija kliznog prozora (mjeseci): trening / test / refit korak.
 train_lookback_months: 60
@@ -11,9 +19,18 @@ test_horizon_months: 12
 refit_step_months: 12
 min_training_months: 60
 
-# Ograničenja portfelja.
-w_max: 0.02
+# Ograničenja portfelja. w_max povišen 0.02 → 0.05 (korekcija 2026-06-13): na
+# ~400 imena cap od 2 % vezivao je 29—73 % težine kod koncentrirajućih alokatora
+# (min_var/NCO), pa je ograničenje, a ne alokator, određivalo težine i mjereni
+# stil. Na 0.05 udio na capu pada <8 % i mehanizam alokatora postaje vidljiv.
+w_max: 0.05
 group_cap: 0.15
+
+# Primarni broj klastera za HERC/NCO (HRP je K-neovisan). Izabran domenski, ne
+# kao argmax siluete (silueta u FF5 prostoru monotono pada → rubni artefakt na
+# K=2/3; nema interior optimuma). Na ~400 imena K=10 daje klastere ~40 imena, pa
+# hijerarhija stvarno ugrize; K ∈ {3, 20} drži se kao osjetljivost (F3.5).
+primary_k: 10
 
 # Sanitacija mjesečnih prinosa: granice fizički mogućeg mjesečnog prinosa za
 # člana S&P 500; vrijednosti izvan [low, high] tretiraju se kao podatkovna

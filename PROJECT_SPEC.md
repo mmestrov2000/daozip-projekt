@@ -57,9 +57,21 @@ koraci i kriteriji prihvaćanja žive u `TASKS.md`.
 
 ### 3.1 Univerzum i razdoblje
 
-Point-in-time S&P 500, razdoblje projekta 2000-01..2025-12. Panel se gradi preko
-**unije svih tickera koji su ikad članovi** u tom razdoblju (`union_universe`),
-a po prozoru se reže na članstvo na datum `train_end`.
+Point-in-time S&P 500, razdoblje preuzimanja podataka 2000-01..2025-12. Panel se
+gradi preko **unije svih tickera koji su ikad članovi** u tom razdoblju
+(`union_universe`), a po prozoru se reže na članstvo na datum `train_end`.
+
+**Podrezivanje backtest prozora (korekcija 2026-06-13).** Iako se podaci
+preuzimaju od 2000-01, unaprijedni hod počinje od `backtest_start = "2008-01"`
+(`config.yaml`), pa je **prva testna godina 2013., a zadnja 2025. (13 prozora)**.
+Razlog je pokrivenost i pristranost preživjelih: u point-in-time okviru
+pristranost se manifestira kao *nedostajući trenutni članovi*, a udio članova s
+≥ 60 mj. valjanih cijena raste s 54,75 % (prozor 2004-12) na 95,63 % (2024-12);
+delistani iz pre-2010 razdoblja (jezgra od 321 nedostajućeg imena bez Yahoo
+povijesti) nisu članovi u zadržanim prozorima, pa ih point-in-time presjek
+korektno izostavlja. Prioritet je konzistentnost i kvaliteta nad volumenom
+(`00_membership_coverage.csv` ostaje pun 21-prozorski dokument koji opravdava
+podrezivanje). N po prozoru je 347—480 imena (prosjek ~411).
 
 **Provedba (2026-06-13):** point-in-time presjek **provodi se u runnerima**
 (`run_walk_forward`, `run_factor_neutral_sweep`, `run_hierarchical_walk_forward`)
@@ -72,11 +84,15 @@ prosljeđuju `data/processed/membership.csv`.
 ### 3.2 Klizni prozori
 
 `generate_rolling_windows` (`src/backtest.py`) s parametrima iz `config.yaml`:
-trening 60 mj., test 12 mj., refit korak 12 mj. → **21 prozor**; prvi
-`label = "2004-12"` (testna godina 2005.), zadnja testna godina završava 2025-12.
-`label` je uključivi završni mjesec treniranja (`YYYY-MM`) i kanonski je
-identifikator u faktorskim izloženostima, tablicama klasteriranja i panelima
-težina. Filtar uloživosti: ≥ 60 mjeseci treniranja (`min_training_months`).
+trening 60 mj., test 12 mj., refit korak 12 mj. Default početak je
+`backtest_start = "2008-01"` (odvojen od `project_start` koji je samo raspon
+podataka) → **13 prozora**; prvi `label = "2012-12"` (testna godina 2013.),
+zadnja testna godina završava 2025-12 (156 testnih mjeseci). `label` je uključivi
+završni mjesec treniranja (`YYYY-MM`) i kanonski je identifikator u faktorskim
+izloženostima, tablicama klasteriranja i panelima težina. Filtar uloživosti:
+≥ 60 mjeseci treniranja (`min_training_months`). Faktorske izloženosti i klasteri
+računaju se po prozoru iz trailing 60 mj., pa su za zadržane labele identični bez
+obzira na trim (reuse postojećeg `factor_exposures.csv`).
 
 ### 3.3 Procjena rizika
 
@@ -96,11 +112,32 @@ Drift-korigirana verzija ostaje kao stupac robusnosti ako ostane vremena.
 
 ### 3.5 Ograničenja portfelja
 
-`w_max = 0.02` po imovini; `group_cap = 0.15`. Nametanje `w_max` (riješeno
-pitanje 1): iterativno odsijecanje na `w_max` s renormalizacijom ostatka,
-identično za sva tri alokatora i oba prostora. Uz težine se vraća
+`w_max = 0.05` po imovini; `group_cap = 0.15` (legacy). Nametanje `w_max`
+(riješeno pitanje 1): iterativno odsijecanje na `w_max` s renormalizacijom
+ostatka, identično za sva tri alokatora i oba prostora. Uz težine se vraća
 `capped_weight_share` (udio težine na capu) po (portfelj, prozor), koji runner
-bilježi u status tablicu; ako cap često grize, navodi se u ograničenjima rada.
+bilježi u status tablicu.
+
+**Povišenje w_max 0.02 → 0.05 (korekcija 2026-06-13).** Na ~400 imena cap od
+2 % vezivao je 29 % težine kod `min_var` i 51—73 % kod `nco_corr` — ograničenje,
+a ne alokator, određivalo je težine, pa je i mjereni stil bio artefakt capa
+(`min_var` koncentracija stila lažno 0,52, *ispod* 1/N). Na `w_max = 0.05` udio
+na capu pada na 0,09 (`min_var`) i 0,07 (`nco_corr`), mehanizam alokatora postaje
+vidljiv, a prirodni poredak koncentracije stila se vraća (`min_var` 0,78 >
+1/N 0,59 > `factor_neutral` 0,53). Osjetljivost (w_max ∈ {0.02, 0.05, 0.10} ×
+K ∈ {3, 10, 20}) u `09_param_sensitivity.csv`; `w_max = 0.10` kao robusnost.
+Napomena: na jednoj klasi imovine (US large-cap) prinosi ostaju ~0,97 korelirani
+neovisno o capu — snaga studije dolazi iz **dispergije koncentracije stila**
+(raspon 0,53—0,80), ne iz dekorelacije prinosa.
+
+**Primarni K = 10 za HERC/NCO (korekcija 2026-06-13).** HRP je K-neovisan (cijelo
+stablo rekurzivnom bisekcijom); K ulazi samo u HERC i NCO. K se bira **domenski,
+ne kao argmax siluete**: silueta u FF5 prostoru monotono pada (K=2: 0,349;
+K=3: 0,185; … K=12: 0,119 — `02_silhouette_by_k.csv`), pa argmax trivijalno
+vraća najmanji K (rubni artefakt, nema interior optimuma — struktura u FF5
+prostoru je slaba). Na ~400 imena K=10 daje klastere ~40 imena, dovoljno da
+hijerarhija ugrize i da unutar-klasterski min-var (NCO) bude stabilan;
+K ∈ {3, 20} drži se kao osjetljivost (F3.5). `primary_k` u `config.yaml`.
 
 **Izmjena 2026-06-12 (odluka korisnika; TASKS.md riješeno pitanje 8):**
 grupno ograničeni benchmarki (`min_var_sector`, `min_var_corr_cluster`,
@@ -335,11 +372,12 @@ pitanja (RP, §3 TASKS.md, odluke 2026-06-10) ili na narativ dizajna.
    konfigurabilno; podjela posla MCS/DSR (vidi §7.4).
 4. **Commit politika izlaza** (RP4): committaju se samo finalne tablice/figure
    koje izvještaj citira; međupaneli ne.
-5. **Odabir primarnog K:** procedura iz notebooka 02, ista za oba prostora;
-   vlastiti-optimalni K po prostoru kao robusnost (F3.5). *Izmjena 2026-06-12:*
-   K = najviša prosječna silueta kroz prozore **bez dodatnih uvjeta** — uvjeti
-   uloživosti (min. veličina klastera ≥ 4, K × group_cap ≥ 1) uklonjeni su
-   zajedno s grupno ograničenim benchmarcima (vidi §3.5); primarni K = 3.
+5. **Odabir primarnog K:** *Izmjena 2026-06-13:* K se bira **domenski, ne kao
+   argmax siluete** — silueta u FF5 prostoru monotono pada (argmax = najmanji K,
+   rubni artefakt; vidi §3.5), pa **primarni K = 10** (klasteri ~40 imena na ~400
+   imena), K ∈ {3, 20} kao osjetljivost (F3.5). HRP je K-neovisan; K ulazi samo u
+   HERC/NCO. (Prethodna izmjena 2026-06-12 postavljala je K = argmax siluete = 3
+   bez uvjeta uloživosti; nadjačano ovom izmjenom.)
 6. **Ledoit–Wolf Σ za sve korake rizika;** bete služe isključivo za izgradnju
    hijerarhije, ne za rizik.
 7. **NCO particija = rez stabla na K** u oba kraka (umjesto k-meansa iz izvornog

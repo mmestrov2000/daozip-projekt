@@ -30,10 +30,10 @@ from src.portfolio import (
     sample_cov,
 )
 from src.utils import (
+    BACKTEST_START,
     GROUP_CAP,
     MIN_TRAINING_MONTHS,
     PROJECT_END,
-    PROJECT_START,
     REFIT_STEP_MONTHS,
     TEST_HORIZON_MONTHS,
     TRAIN_LOOKBACK_MONTHS,
@@ -68,7 +68,7 @@ def _month_end(value: str | pd.Timestamp) -> pd.Timestamp:
 
 
 def generate_rolling_windows(
-    project_start: str | pd.Timestamp = PROJECT_START,
+    project_start: str | pd.Timestamp = BACKTEST_START,
     project_end: str | pd.Timestamp = PROJECT_END,
     train_lookback: int = TRAIN_LOOKBACK_MONTHS,
     test_horizon: int = TEST_HORIZON_MONTHS,

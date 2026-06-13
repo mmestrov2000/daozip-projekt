@@ -21,6 +21,8 @@ def test_constants_bound_to_config():
     assert utils.TRAIN_LOOKBACK_MONTHS == CONFIG["train_lookback_months"]
     assert utils.TEST_HORIZON_MONTHS == CONFIG["test_horizon_months"]
     assert utils.REFIT_STEP_MONTHS == CONFIG["refit_step_months"]
+    assert utils.BACKTEST_START == CONFIG["backtest_start"]
+    assert utils.PRIMARY_K == CONFIG["primary_k"]
 
 
 def test_epsilon_grid_has_four_members():
