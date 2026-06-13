@@ -667,6 +667,185 @@ def sharpe_ratio(
     return float(excess.mean() / std * np.sqrt(MONTHS_PER_YEAR))
 
 
+# ---------------------------------------------------------------------------
+# Model Confidence Set (Hansen–Lunde–Nason 2011) — F1.7
+# ---------------------------------------------------------------------------
+
+
+def _mcs_loss_panel(returns_panel: pd.DataFrame, loss: str) -> pd.DataFrame:
+    """Pretvori panel prinosa u panel gubitaka prema odabranoj funkciji.
+
+    Default ``sq_demeaned``: ``l_t = (r_t − r̄)²`` (riješeno pitanje 3), gdje se
+    srednja vrijednost računa po stupcu na mjesecima koji ulaze u MCS (presjek).
+    """
+    if loss == "sq_demeaned":
+        demeaned = returns_panel - returns_panel.mean(axis=0)
+        return demeaned**2
+    raise ValueError(f"Nepoznata MCS funkcija gubitka: {loss!r}.")
+
+
+def _mcs_max_t(
+    loss_arr: np.ndarray,
+    names: list[str],
+    alpha: float,
+    n_bootstraps: int,
+    block_size: int,
+    seed: int,
+) -> tuple[dict[str, float], dict[str, bool]]:
+    """Iterativna eliminacija po max-t statistici (HLN 2011, T_max varijanta).
+
+    Za skup modela računa se relativni gubitak ``d_{i·} = L̄_i − mean_j L̄_j``;
+    standardizira se bootstrap procjenom standardne devijacije (``ζ_i``) pa je
+    ``t_i = d_{i·}/ζ_i`` i ``T_max = max_i t_i``. Bootstrap p-vrijednost je udio
+    centriranih bootstrap statistika ``≥ T_max``. Ako je ``p < alpha``, izbacuje
+    se najgori model (najveći ``t_i``) i postupak se ponavlja. MCS p-vrijednost
+    svakog izbačenog modela je tekući maksimum p-vrijednosti testova (monotona).
+    Bootstrap indeksi generiraju se jednom i dijele kroz korake (standardna
+    izvedba MCS-a).
+
+    Vraća ``(mcs_p, in_set)`` po imenu modela.
+    """
+    n, _ = loss_arr.shape
+    rng = np.random.default_rng(seed)
+    boot_idx = np.stack(
+        [_block_indices(n, block_size, rng) for _ in range(n_bootstraps)]
+    )  # (B, n)
+    sample_means = loss_arr.mean(axis=0)  # (m,)
+    boot_means = np.stack([loss_arr[idx].mean(axis=0) for idx in boot_idx])  # (B, m)
+
+    active = list(range(len(names)))
+    mcs_p: dict[str, float] = {}
+    in_set: dict[str, bool] = {name: False for name in names}
+    running_max_p = 0.0
+
+    while len(active) > 1:
+        a = np.array(active)
+        d_i = sample_means[a] - sample_means[a].mean()
+        bd_i = boot_means[:, a] - boot_means[:, a].mean(axis=1, keepdims=True)
+        zeta = np.sqrt(np.mean((bd_i - d_i) ** 2, axis=0))
+        with np.errstate(invalid="ignore", divide="ignore"):
+            t_i = np.where(zeta > 0, d_i / zeta, 0.0)
+            boot_t = np.where(zeta > 0, (bd_i - d_i) / zeta, 0.0)
+        t_max = float(np.max(t_i))
+        boot_t_max = boot_t.max(axis=1)
+        p_value = float(np.mean(boot_t_max >= t_max))
+        running_max_p = max(running_max_p, p_value)
+        if p_value >= alpha:
+            break
+        worst = active[int(np.argmax(t_i))]
+        mcs_p[names[worst]] = running_max_p
+        active.remove(worst)
+
+    # Preostali modeli su u MCS-u; jedini preostali model po konvenciji ima p=1.
+    final_p = 1.0 if len(active) == 1 else running_max_p
+    for idx in active:
+        mcs_p[names[idx]] = final_p
+        in_set[names[idx]] = True
+    return mcs_p, in_set
+
+
+def model_confidence_set(
+    returns_panel: pd.DataFrame,
+    loss: str = "sq_demeaned",
+    alpha: float = 0.10,
+    n_bootstraps: int = 1000,
+    block_size: int = 12,
+    seed: int = 42,
+    coverage_threshold: float = 0.20,
+) -> pd.DataFrame:
+    """Model Confidence Set (Hansen–Lunde–Nason 2011) na panelu prinosa portfelja.
+
+    Iterativna eliminacija po max-t statistici s blok-bootstrap distribucijom
+    (vidi :func:`_mcs_max_t`); gubitak po defaultu ``l_t = (r_t − r̄)²``
+    (riješeno pitanje 3).
+
+    **Pravilo za neuravnotežen panel (korekcija K3, zaključano unaprijed):** MCS
+    se računa na **presjeku mjeseci dostupnih svim uspoređenim varijantama**.
+    Varijanta kojoj nedostaje više od ``coverage_threshold`` (20 %) mjeseci u
+    odnosu na najbolje pokrivenu varijantu **isključuje se iz MCS-a** (ostaje za
+    parne bootstrap usporedbe drugdje) i označava ``status="excluded"``; broj
+    ispuštenih mjeseci izvještava se u izlazu. Time se izbjegava da jedna rijetko
+    izvediva varijanta sruši presjek i odnese mjesece dobro pokrivenim
+    varijantama.
+
+    Vraća DataFrame sa stupcima
+    ``portfolio, in_mcs, p_value, rank, n_months_used, n_months_dropped, status``
+    (rang 1 = najmanji prosječni gubitak; ``status ∈ {included, excluded}``).
+    """
+    if not isinstance(returns_panel, pd.DataFrame):
+        raise TypeError("returns_panel mora biti DataFrame.")
+    if returns_panel.shape[1] < 1:
+        raise ValueError("returns_panel mora imati barem jedan stupac.")
+
+    panel = returns_panel.apply(pd.to_numeric, errors="raise")
+    own_counts = panel.notna().sum(axis=0).astype(int)
+    reference = int(own_counts.max())
+    if reference == 0:
+        raise ValueError("returns_panel nema nijedan valjani mjesec.")
+
+    missing_frac = (reference - own_counts) / reference
+    excluded = [c for c in panel.columns if missing_frac[c] > coverage_threshold]
+    included = [c for c in panel.columns if c not in excluded]
+
+    rows: list[dict[str, object]] = []
+
+    if included:
+        inc_panel = panel[included]
+        used = inc_panel.loc[inc_panel.notna().all(axis=1)]
+        n_used = int(len(used))
+        if n_used <= block_size:
+            raise ValueError(
+                f"Presjek ima {n_used} mjeseci, premalo za block_size={block_size}."
+            )
+        loss_arr = _mcs_loss_panel(used, loss).to_numpy(dtype=float)
+        mean_loss = loss_arr.mean(axis=0)
+        order = list(np.argsort(mean_loss, kind="stable"))
+        rank_map = {included[pos]: r + 1 for r, pos in enumerate(order)}
+        mcs_p, in_set = _mcs_max_t(
+            loss_arr, list(included), alpha, n_bootstraps, block_size, seed
+        )
+        for col in included:
+            rows.append(
+                {
+                    "portfolio": str(col),
+                    "in_mcs": bool(in_set[col]),
+                    "p_value": float(mcs_p[col]),
+                    "rank": int(rank_map[col]),
+                    "n_months_used": n_used,
+                    "n_months_dropped": int(own_counts[col] - n_used),
+                    "status": "included",
+                }
+            )
+
+    for col in excluded:
+        rows.append(
+            {
+                "portfolio": str(col),
+                "in_mcs": False,
+                "p_value": float("nan"),
+                "rank": float("nan"),
+                "n_months_used": int(own_counts[col]),
+                "n_months_dropped": int(reference - own_counts[col]),
+                "status": "excluded",
+            }
+        )
+
+    result = pd.DataFrame(
+        rows,
+        columns=[
+            "portfolio", "in_mcs", "p_value", "rank",
+            "n_months_used", "n_months_dropped", "status",
+        ],
+    )
+    # Uredan poredak: uključene varijante po rangu, isključene na kraj.
+    result = result.sort_values(
+        by=["status", "rank"],
+        ascending=[True, True],
+        na_position="last",
+    ).reset_index(drop=True)
+    return result
+
+
 def block_bootstrap_metric(
     portfolio_returns_with_factors: pd.DataFrame,
     metric_fn,

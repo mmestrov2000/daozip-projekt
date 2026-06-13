@@ -472,7 +472,7 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     tablici za izvještaj); figura postoji.
   - Ovisnosti: F0.9, F1.5
   - *Odstupanje:* „postojeći stupci radi kontinuiteta” = aktualna benchmark obitelj po izmjeni odluke 10 (2026-06-12, RP8): 1/N, min_var i `factor_neutral_eε` obitelj (grupno ograničeni `min_var_sector/corr_cluster/factor_cluster` uklonjeni iz novih panela) → 10 redaka (≥ 9). `turnover` stupac = prosječni jednostrani obrtaj kroz prozore (uklj. prvi = 1.0); `ann_vol`/`max_drawdown` iz bruto prinosa, obje Sharpe (bruto/neto) zasebno. Fusnote i u `outputs/tables/09_replication_summary_notes.md`. **Uzvodni data bug riješen 2026-06-13** (zaseban task, odobrio korisnik): point-in-time presjek članstva u runnerima + `clip_implausible_returns` → paneli regenerirani na čistim podacima (`equal_weight` god. vol 309 %→16,9 %, sve god. vol sad 12–17 %, Sharpe 0,60–0,65). Vidi PROGRESS.md (2026-06-13 membership-fix) i PROJECT_SPEC §3.1/§8.2.
-- [ ] **F1.7 — Model Confidence Set (Hansen–Lunde–Nason 2011)** (L)
+- [x] **F1.7 — Model Confidence Set (Hansen–Lunde–Nason 2011)** (L)
   - Opis: nova funkcija `model_confidence_set(returns_panel, loss="sq_demeaned",
     alpha, n_bootstraps, block_size, seed)` u `src/evaluation.py`: gubitak po
     defaultu `l_t = (r_t − r̄)²` (riješeno pitanje 3); iterativna eliminacija po
@@ -493,6 +493,7 @@ stablu, integrirane u postojeći walk-forward, s replikacijskom tablicom naspram
     presjeku označena `excluded`, presjek i brojevi ispuštenih mjeseci točni);
     CSV postoji sa stupcima `n_months_used, n_months_dropped`.
   - Ovisnosti: F1.5
+  - *Odstupanje:* pravilo K3 implementirano prema obvezujućem kriteriju prihvaćanja („varijanta s > 20 % nedostajućih mjeseci → `excluded`”), ne prema doslovnom „presjek odnese njezinih mjeseci” (taj bi izraz, uz presjek-nad-svima, apsurdno isključio cijelu obitelj s punom poviješću umjesto rijetko izvedive varijante — vidi okvir rizika K3 i kontekst neizvedivosti); referenca pokrivenosti = najbolje pokrivena varijanta. Potpis dobio `coverage_threshold=0.20` i izlaz stupac `status ∈ {included, excluded}` (marker `excluded`; ostali stupci kako zadano). MCS p-vrijednost = tekući maksimum p-vrijednosti testova (monotona po redoslijedu izbacivanja); jedini preostali model dobiva p=1. Replikacijski skup = obitelj iz `05_port_returns_panel_extended.csv` (1/N, min_var, `factor_neutral_eε`) + `09_port_returns_panel_hierarchical.csv` (hrp_corr_single/ward, herc_corr, nco_corr) = 10 portfelja, svi 252 mj. → nijedan isključen; na α=0.10 MCS zadržava niskovolatilne (min_var, `factor_neutral`, nco_corr), `equal_weight` najodlučnije izbačen (p=0.002). CSV generiran jednokratnim helperom (notebook izvan popisa datoteka F1.7, pretpostavka 4 / presedan F1.5).
 
 **Definicija završetka Faze 1:** `src/hierarchical.py` postoji s validiranim
 HRP/HERC/NCO i graditeljima korelacijskih stabala single + ward (testovi +
