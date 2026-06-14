@@ -1,88 +1,140 @@
-# Skriveni stilski rizik u portfeljima minimalne varijance
+# Gdje nastaje stilski rizik hijerarhijske alokacije?
 
-Kvantitativni projekt otkrivanja znanja koji dijagnosticira skrivenu koncentraciju Fama-French stilskih faktora u portfeljima minimalne varijance sa samo dugim pozicijama — koristeći klasteriranje u prostoru faktora kao dijagnostičku leću, a izravna ograničenja faktorske neutralnosti kao djelotvoran popravak.
+Kontrolirana studija koja utvrđuje **gdje u cjevovodu hijerarhijske alokacije**
+(HRP, HERC, NCO) nastaje stilski rizik: u *prostoru* u kojem se hijerarhija gradi
+(korelacijskom naspram faktorskom) ili u *mehanizmu* alokacije i ograničenja.
+Provedeno na point-in-time univerzumu indeksa **S&P 500 (2013. – 2025.)**, uz
+projekcijski QP overlay `|w'β_f| ≤ ε` na hijerarhijske težine.
 
-> Klasteriraj Russell 1000 prema Fama-French faktorskim izloženostima kako bi se otkrila skrivena stilska struktura univerzuma, dijagnosticiraj zašto se portfelji minimalne varijance tiho opterećuju faktorima profitabilnosti i investiranja, te ispravi nagib izravnim linearnim ograničenjima faktorske neutralnosti — provjereno na 16 kliznih prozora izvan uzorka.
+> Jedina manipulirana varijabla je ulaz u izgradnju hijerarhije — korelacijsko
+> stablo naspram Wardova stabla na standardiziranim Fama-French petfaktorskim
+> značajkama. Metoda veze drži se konstantnom (Wardova veza u oba kraka) pa
+> usporedba mijenja samo prostor, a ne i vezu. Dodavanjem overlay ograničenja
+> nastaje potpuni **2×2 faktorijal** {prostor hijerarhije} × {bez / sa
+> ograničenjem}. Primarni ishod je **koncentracija stila**
+> `|β_SMB| + |β_HML| + |β_RMW| + |β_CMA|` iz petfaktorske atribucije ostvarenih
+> testnih prinosa.
 
 ---
 
 ## Glavni rezultat
 
-Unaprijedni backtest, mjesečni prinosi, **16 kliznih prozora (2010. – 2025.)**, prozor treniranja od 60 mjeseci unatrag s ponovnim procjenjivanjem svakih 12 mjeseci, Ledoit-Wolf sažimanje kovarijance, ograničenje pojedine pozicije `w_max = 0.02`, grupno ograničenje `u = 0.15`.
+Unaprijedni backtest, mjesečni prinosi, **13 kliznih prozora (2013. – 2025.)**,
+prozor treniranja od 60 mjeseci unatrag s ponovnim procjenjivanjem svakih
+12 mjeseci, Ledoit–Wolf sažimanje kovarijance, ograničenje pojedine pozicije
+`w_max = 0.05`, primarni broj klastera `K = 10`. Statistika: blok-bootstrap,
+Model Confidence Set (Hansen–Lunde–Nason 2011) i Deflated Sharpe Ratio
+(Bailey & López de Prado 2014).
 
-**Petfaktorska atribucija prinosa u testnom razdoblju** (glavna dijagnostika):
+**Baza — koncentracija stila i ostvarena volatilnost po alokatoru:**
 
-| Portfelj | β_MKT | β_SMB | β_HML | β_RMW | β_CMA | konc. stila | god. vol. |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Jednake težine | 1.11 | 0.49 | 0.09 | 0.08 | 0.18 | 0.83 | 21.2 % |
-| Minimalna varijanca | 0.66 | 0.20 | −0.12 | **+0.33** | **+0.34** | 0.98 | 12.0 % |
-| + ograničenje sektora | 0.68 | 0.21 | −0.14 | +0.26 | +0.36 | 0.97 | 12.1 % |
-| + ograničenje korelacijskih klastera | 0.71 | 0.20 | −0.09 | +0.31 | +0.26 | 0.86 | 12.2 % |
-| + ograničenje faktorskih klastera | 0.83 | 0.55 | −0.19 | **−0.15** | **+0.58** | 1.47 | 17.9 % |
+| Portfelj | Prostor hijerarhije | Konc. stila | God. vol. | Sharpe (neto) | U MCS-u |
+|---|---|---:|---:|---:|:---:|
+| Jednake težine (1/N) | — (referenca) | 0.59 | 15.6 % | 0.78 | ne |
+| Minimalna varijanca | — (referenca) | 0.78 | 12.7 % | 0.72 | da |
+| HRP | korelacijski | 0.57 | 13.5 % | 0.82 | da |
+| HERC | korelacijski | 0.57 | 14.3 % | 0.73 | ne |
+| NCO | korelacijski | 0.80 | 12.3 % | 0.80 | da |
+| HRP | faktorski | 0.58 | 13.6 % | 0.83 | da |
+| HERC | faktorski | 0.66 | 15.2 % | 0.69 | ne |
+| NCO | faktorski | 0.74 | 12.5 % | 0.76 | da |
 
-`style_concentration = |β_SMB| + |β_HML| + |β_RMW| + |β_CMA|`.
+`konc. stila = |β_SMB| + |β_HML| + |β_RMW| + |β_CMA|`. „U MCS-u” = pripadnost
+Model Confidence Setu na neto prinosima, α = 0.10. Brojevi su iz
+[`outputs/tables/13_master_table.csv`](outputs/tables/13_master_table.csv)
+(37 portfelja × 29 metrika).
 
-**Dijagnoza potvrđena.** Neograničena minimalna varijanca opterećuje se profitabilnošću i niskim investiranjem (β_RMW = +0.33, β_CMA = +0.34). Ograničenja po sektorima i korelacijskim klasterima ostavljaju nagib u biti netaknutim.
+**H1 — nasljeđivanje nagiba (dijagnoza).** NCO u cijelosti nasljeđuje skriveni
+RMW/CMA nagib minimalne varijance: koncentracija stila `0.80 ≈ min_var 0.78 ≫
+1/N 0.59`. HRP i HERC nasljeđuju isti *mehanizam* (težina raste s padom
+rezidualne volatilnosti), ali ga raspršuju na razinu `1/N` (`0.57`).
 
-**Ograničenje klastera ne ispravlja nagib.** Ograničenje faktorskih klastera neutralizira RMW (`+0.33 → −0.15`), ali preraspodjeljuje težinu u klastere s većim SMB i CMA nagibima. Ukupna koncentracija stila raste s `0.98` na `1.47`, a portfelj je `5.8` postotnih bodova volatilniji. Mehanizam ograničavanja klastera ne cilja nijednu konkretnu faktorsku betu — to je pogrešna poluga za ograničenje.
+**H2 — prostor ne neutralizira nagib.** Prelazak s korelacijskog na faktorski
+prostor hijerarhije ne uklanja nagib (NCO `0.80 → 0.74`, HERC `0.57 → 0.66`,
+HRP `0.57 → 0.58`; razlika u bootstrapu obuhvaća nulu). Očekivani dobitak u
+stabilnosti klastera ne ostvaruje se pri `K = 10`; jedina konkretna prednost
+faktorskog prostora je parsimonija (~34× manje parametara: `~N²/2` korelacija
+naspram `6N` beta).
 
-**Izravna faktorska neutralnost je djelotvoran popravak.** Dodavanje `|w'β_f| ≤ ε` za `f ∈ {SMB, HML, RMW, CMA}` u kvadratni program smanjuje ostvarenu koncentraciju stila za **31 %** pri `ε = 0` bez troška u ostvarenoj volatilnosti:
+**H3 — overlay je djelotvoran lijek.** Jedini mehanizam koji nagib stvarno
+uklanja je izravno linearno ograničenje na bete, primijenjeno kao overlay na
+hijerarhijske težine. Potpuni 2×2 faktorijal (prosjek preko HRP/HERC/NCO,
+ε = 0):
 
-| Portfelj | β_MKT | β_SMB | β_HML | β_RMW | β_CMA | konc. stila | god. vol. |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Minimalna varijanca | 0.66 | +0.20 | −0.12 | **+0.33** | **+0.34** | 0.98 | 12.0 % |
-| faktorski neutralan, ε = 0.00 | 0.69 | +0.19 | −0.03 | **+0.26** | **+0.20** | **0.67** | **12.1 %** |
-| faktorski neutralan, ε = 0.05 | 0.68 | +0.19 | −0.06 | +0.29 | +0.22 | 0.76 | 12.0 % |
-| faktorski neutralan, ε = 0.10 | 0.67 | +0.19 | −0.07 | +0.31 | +0.24 | 0.81 | 12.0 % |
-| faktorski neutralan, ε = 0.15 | 0.67 | +0.21 | −0.11 | +0.30 | +0.31 | 0.93 | 12.0 % |
+| Prostor hijerarhije | Bez overlaya | S overlayem (ε = 0) | Δ konc. stila |
+|---|---|---|---:|
+| korelacijski | konc. stila 0.65 · vol 13.4 % | konc. stila 0.44 · vol 13.7 % | **−0.21 (−33 %)** |
+| faktorski | konc. stila 0.66 · vol 13.8 % | konc. stila 0.51 · vol 14.0 % | **−0.15 (−23 %)** |
 
-**Intervali pouzdanosti blok-bootstrapom u odnosu na `min_var`** (ε = 0): Δ konc. stila = **−0.308**, 95 % CI **[ −0.47, −0.09 ]**, `p = 0.002`. Interval razlike volatilnosti obuhvaća nulu (`p = 0.59`). Popravak donosi upravo onaj kompromis koji je projekt tražio.
+Overlay smanjuje koncentraciju stila u **oba** prostora (značajno u 5 od 6
+pojedinačnih varijanti) uz zanemariv trošak u ostvarenoj volatilnosti i
+dominira na granici stil–volatilnost. Brojevi su iz
+[`outputs/tables/13_factorial_2x2.csv`](outputs/tables/13_factorial_2x2.csv).
 
-Glavna figura: [`outputs/figures/04_style_concentration_per_year.png`](outputs/figures/04_style_concentration_per_year.png).
-Granica (konc. stila naspram vol.): [`outputs/figures/05_frontier_style_vs_vol.png`](outputs/figures/05_frontier_style_vs_vol.png).
-Bootstrap distribucija: [`outputs/figures/05_bootstrap_factor_neutral_e0.png`](outputs/figures/05_bootstrap_factor_neutral_e0.png).
-Raspodjela težina po klasterima: [`outputs/figures/06_cluster_weight_allocation.png`](outputs/figures/06_cluster_weight_allocation.png).
+Stari projekt (dijagnoza min-vara i izravna faktorska neutralnost) ugnježđuje se
+kao referentna obitelj (`min_var`, `factor_neutral_eε`), ne baca se.
+
+**Figure:**
+[pokrivenost članstva](outputs/figures/00_membership_coverage.png) ·
+[kumulativni rast](outputs/figures/09_cumulative_growth.png) ·
+[koncentracija stila po godini](outputs/figures/10_style_concentration_per_year.png) ·
+[težina naspram bete](outputs/figures/10_weight_vs_beta.png) ·
+[granica stil–volatilnost](outputs/figures/12_frontier_style_vs_vol.png).
+
+Potpuni izvještaj: [`reports/izvjestaj.pdf`](reports/izvjestaj.pdf)
+(izvor [`reports/izvjestaj.tex`](reports/izvjestaj.tex)).
 
 ---
 
-## Što se nalazi u ovom repozitoriju
+## Što se nalazi u repozitoriju
 
 ```
 .
-├── PROJECT_SPEC.md          ← potpuna metodologija i odluke
-├── TASKS.md                 ← fazni plan implementacije
-├── README.md                ← ova datoteka
+├── PROJECT_SPEC.md          ← potpuna metodologija i zaključane odluke
+├── TASKS.md                 ← fazni plan implementacije (izvor zadataka)
+├── PROGRESS.md              ← dnevnik implementacije
+├── CLAUDE.md                ← upute za rad na projektu
+├── config.yaml              ← jedino mjesto za parametre (prozori, w_max, K, ε, …)
 ├── requirements.txt         ← fiksirane Python ovisnosti
 ├── data/
-│   ├── raw/                 ← snimka univerzuma + predmemorija cijena po dionici (parquet, izvan gita)
-│   └── processed/           ← mjesečni prinosi, viškovi prinosa, faktori, izloženosti, klasteri
+│   ├── raw/                 ← članstvo S&P 500, korekcije oznaka, predmemorija cijena (parquet, izvan gita)
+│   └── processed/           ← mjesečni/višak prinosi, faktori, izloženosti, klasteri, članstvo, metapodaci
 ├── notebooks/
-│   ├── 01_data_and_factors.ipynb   ← prikupljanje podataka + faktorske regresije po prozoru
-│   ├── 02_clustering.ipynb         ← odabir K, dendrogram, UMAP, bootstrap stabilnost
-│   ├── 03_portfolios.ipynb         ← unaprijedni backtest pet portfelja
-│   ├── 04_evaluation.ipynb         ← evaluacija izvan uzorka, bootstrap CI, osjetljivost
-│   ├── 05_factor_neutral.ipynb     ← izravan popravak faktorske neutralnosti, ε-prelet, hibrid
-│   ├── 06_summary.ipynb            ← vizualni rekapitulacijski pregled u pet dijelova (bez ponovnog procjenjivanja)
-│   ├── 07_clustering_methods.ipynb ← K-means/k-medoid/GMM/DBSCAN + odabir K Calinski-Harabaszom/Gapom
-│   └── 08_drawdown_tree.ipynb      ← proširenje: stablo odlučivanja + ansambli za pad (CV po godini)
+│   ├── 01_data_and_factors.ipynb       ← podaci + petfaktorske regresije po prozoru
+│   ├── 02_clustering.ipynb             ← klasteri, silueta, dendrogram, bootstrap stabilnost
+│   ├── 03_portfolios.ipynb             ← benchmark portfelji (1/N, min-var) unaprijednim hodom
+│   ├── 04_evaluation.ipynb             ← (naslijeđeno) evaluacija starog dizajna
+│   ├── 05_factor_neutral.ipynb         ← izravna faktorska neutralnost, ε-prelet (referentna obitelj)
+│   ├── 06_summary.ipynb                ← (naslijeđeno) sažetak starog dizajna
+│   ├── 07_clustering_methods.ipynb     ← K-means/k-medoid/GMM/DBSCAN + odabir K (robusnost)
+│   ├── 09_hierarchical_replication.ipynb  ← HRP/HERC/NCO replikacija + MCS (Faza 1)
+│   ├── 10_hierarchical_diagnosis.ipynb    ← dijagnoza skrivenog stilskog rizika (Faza 2, H1)
+│   ├── 11_factor_space_intervention.ipynb ← intervencija u faktorskom prostoru (Faza 3, H2)
+│   ├── 12_overlay_mechanism.ipynb         ← overlay QP, granica, DSR, finalni MCS (Faza 4, H3)
+│   └── 13_final_summary.ipynb             ← master tablica + 2×2 faktorijal (Faza 5)
 ├── src/
-│   ├── data.py              ← univerzum Russell 1000, obnovljiva predmemorija cijena, FF5 faktori
-│   ├── factors.py           ← OLS faktorske regresije po prozoru
-│   ├── clustering.py        ← hijerarhijsko klasteriranje + bootstrap stabilnost
-│   ├── clustering_ext.py    ← K-means, k-medoid, GMM, DBSCAN + silueta/CH/Davies-Bouldin/Gap
-│   ├── portfolio.py         ← Ledoit-Wolf kov., min. varijanca, grupno ograničeni, faktorski neutralan, hibrid
-│   ├── backtest.py          ← generator kliznih prozora + unaprijedni hod + prelet faktorske neutralnosti
-│   ├── evaluation.py        ← rizik, diversifikacija, faktorska atribucija, bootstrap zajedničkog uzorkovanja
-│   ├── supervised.py        ← proširenje: predviđanje pada stablom odlučivanja / ansamblom
-│   ├── viz.py               ← zajednički pomoćnici za crtanje (paleta, radar, težine klastera)
-│   └── utils.py             ← konstante i putanje projekta
+│   ├── config.py            ← učitavanje config.yaml
+│   ├── utils.py             ← konstante i putanje (vezane na config)
+│   ├── data.py             ← point-in-time članstvo, predmemorija cijena, FF5, sanitacija
+│   ├── factors.py          ← OLS petfaktorske regresije po prozoru
+│   ├── clustering.py       ← hijerarhijsko klasteriranje + ARI stabilnost
+│   ├── clustering_ext.py   ← K-means, k-medoid, GMM, DBSCAN + indeksi odabira K
+│   ├── hierarchical.py     ← HRP/HERC/NCO + graditelji korelacijskih stabala (single/ward)
+│   ├── portfolio.py        ← Ledoit–Wolf kov., min-var, faktorski neutralan, projekcijski overlay
+│   ├── backtest.py         ← klizni prozori + unaprijedni hod (benchmark, hijerarhijski, overlay)
+│   ├── evaluation.py       ← rizik, atribucija, troškovi, bootstrap, MCS, DSR
+│   └── viz.py              ← zajednički pomoćnici za crtanje
+├── tests/                  ← pytest (config, članstvo, cijene, prozori, troškovi, HRP/HERC/NCO, MCS, DSR, overlay, …)
 ├── scripts/
-│   └── build_notebooks.py   ← obnavlja notebookove 01-05 iz jedinstvenog izvora istine
+│   └── run_all.sh          ← jedan skriptirani put: pytest + svi notebookovi glavnog tijeka
 ├── outputs/
-│   ├── figures/             ← spremljeni grafovi (PNG)
-│   └── tables/              ← panel težina, prinosi portfelja, atribucija, bootstrap CI-jevi, osjetljivost
-└── reports/
-    └── final_report.md      ← dijagnostički izvještaj
+│   ├── tables/             ← CSV paneli i tablice (prefiksi 00, 02, 05, 07, 09–13)
+│   └── figures/            ← spremljeni grafovi (PNG)
+├── reports/
+│   ├── izvjestaj.tex       ← izvještaj (LaTeX)
+│   ├── izvjestaj.pdf       ← kompilirani izvještaj
+│   └── figures/            ← figure izvještaja (fig01–fig05)
+└── archive/                ← naslijeđeno proširenje (notebook 08, supervised.py) — negativan rezultat
 ```
 
 ---
@@ -97,82 +149,73 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Pokreni notebookove redom
+### 2. Jedan skriptirani put
 
 ```bash
-jupyter nbconvert --to notebook --execute --inplace notebooks/01_data_and_factors.ipynb
-jupyter nbconvert --to notebook --execute --inplace notebooks/02_clustering.ipynb
-jupyter nbconvert --to notebook --execute --inplace notebooks/03_portfolios.ipynb
-jupyter nbconvert --to notebook --execute --inplace notebooks/04_evaluation.ipynb
-jupyter nbconvert --to notebook --execute --inplace notebooks/05_factor_neutral.ipynb
+bash scripts/run_all.sh
 ```
 
-Notebook 01 dohvaća univerzum i dnevnu povijest cijena za ~1000 dionica. Prvo pokretanje traje ~14 minuta i sprema parquet predmemoriju po dionici u `data/raw/price_cache/`; sljedeća pokretanja ponovno koriste predmemoriju.
+Skripta redom pokreće `pytest`, pa izvršava notebookove glavnog tijeka
+(01, 02, 03, 05, 07, 09, 10, 11, 12, 13) preko
+`jupyter nbconvert --execute --inplace`, te ispisuje ukupno trajanje. Svi
+parametri analize čitaju se iz [`config.yaml`](config.yaml).
 
-Notebook 02 odabire K, prilagođava klastere na svakom prozoru i provodi analizu stabilnosti s 500 bootstrap uzoraka (~5 minuta na reprezentativnom prozoru).
+**Trajanje (približno, ovisi o hardveru i mreži):**
 
-Notebook 03 pokreće unaprijedni backtest kroz svih 16 prozora (~30 sekundi).
+| Pokretanje | Predmemorija cijena | Trajanje |
+|---|---|---|
+| Prvo | prazna (preuzima ~757 dionica + FF5) | ~30 – 40 min |
+| Ponovno | topla (`data/raw/price_cache/`) | ~12 – 18 min |
 
-Notebook 04 provodi evaluaciju izvan uzorka, blok-bootstrap zajedničkog uzorkovanja na razlikama metrika i prelet osjetljivosti po procjenitelju kovarijance × `w_max` × `group_cap` (~2 – 3 minute).
+U oba slučaja notebook 01 (preuzimanje + regresije) i notebook 02 (bootstrap
+stabilnost klastera, 500 uzoraka) najskuplji su koraci. Obrađeni CSV-ovi u
+`data/processed/` nose dovoljno stanja da se analitički notebookovi pokreću i
+bez ponovnog preuzimanja cijena.
 
-Notebook 05 provodi ε-prelet faktorske neutralnosti, hibrid (klaster + faktorska neutralnost) i prošireni bootstrap (~2 – 3 minute).
-
-Ako želiš provjeriti samo analitiku (preskačući preuzimanje cijena), obrađeni CSV-ovi u `data/processed/` nose dovoljno stanja za pokretanje notebookova 02 – 05 zasebno.
+> Notebookovi `04` (stara evaluacija) i `06` (stari sažetak) nisu u glavnom
+> tijeku — zamijenili su ih `10`/`12` (dijagnoza/mehanizam) i `13` (sažetak) —
+> pa ih `run_all.sh` ne izvršava. Notebook `08` (nadzirano proširenje) arhiviran
+> je u [`archive/`](archive/).
 
 ---
 
 ## Izvori podataka
 
-| Stavka | Izvor | Predmemorirano u |
+| Stavka | Izvor | Pohranjeno u |
 |---|---|---|
-| Univerzum Russell 1000 (oznaka, naziv, GICS sektor) | [Wikipedia „Russell 1000 Index”](https://en.wikipedia.org/wiki/Russell_1000_Index) — tablica sastavnica | `data/raw/russell1000_tickers.csv` |
-| Dnevne prilagođene zaključne cijene | Yahoo Finance putem `yfinance` | `data/raw/price_cache/{TICKER}.parquet` |
-| Fama-French petfaktorski podaci (mjesečni) | [Knjižnica podataka Kennetha Frencha](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html) | `data/processed/factors.csv` |
-| Metapodaci snimke univerzuma | izračunato u trenutku dohvata | `data/raw/iwb_holdings_meta.json` |
+| Point-in-time članstvo S&P 500 (oznaka, naziv, interval) | javna rekonstrukcija [`fja05680/sp500`](https://github.com/fja05680/sp500) + spot-provjere poznatih događaja | `data/raw/sp500_membership.csv` |
+| Ručne korekcije oznaka i preimenovanja (npr. FB→META, LEHMQ→LEH) | sastavljeno ručno | `data/raw/ticker_overrides.csv` |
+| Mjesečne prilagođene cijene | Yahoo Finance (`yfinance`), Stooq kao dopuna za delistane | `data/raw/price_cache/{TICKER}.parquet` |
+| Fama–French petfaktorski podaci (mjesečni) | [Knjižnica podataka Kennetha Frencha](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html) | `data/processed/factors.csv` |
 
-Sloj podataka (`src/data.py`) prvo pokušava dohvatiti iShares IWB CSV udjela; Wikipedijina zamjenska tablica koristi se kad iShares ne posluži CSV koji se može parsirati. Odabrani izvor zabilježen je u `iwb_holdings_meta.json` za izvještaj.
+WRDS/CRSP pristup nije bio dostupan, pa članstvo dolazi iz javne rekonstrukcije
+(grananje plana dokumentirano u [`PROJECT_SPEC.md`](PROJECT_SPEC.md)). Pokrivenost
+po prozoru — koliko je point-in-time članova imalo valjane cijene i ≥ 60 mjeseci
+treninga — izmjerena je i izvještena (`data/raw/russell1000_tickers.csv` ostaje
+kao povijesna snimka prijašnjeg univerzuma).
 
 ---
 
-## Metodologija u jednoj stranici
+## Metodologija u kratko
 
-**Značajke dionice.** Za svaku dionicu i svaki prozor treniranja prilagođavamo Fama-French petfaktorsku regresiju na mjesečnim viškovima prinosa i bilježimo `(α, β_MKT, β_SMB, β_HML, β_RMW, β_CMA, σ_ε, R²)`. Šestodimenzionalni vektor `(β_MKT, β_SMB, β_HML, β_RMW, β_CMA, σ_ε)` skup je značajki za klasteriranje.
+- **Značajke dionice.** Po prozoru treniranja petfaktorska regresija na mjesečnim
+  viškovima prinosa daje `(α, β_MKT, β_SMB, β_HML, β_RMW, β_CMA, σ_ε, R²)`.
+  Standardizirani petfaktorski vektor je ulaz za faktorsko stablo.
+- **Alokatori.** HRP (López de Prado 2016) — kvazidijagonalizacija + rekurzivna
+  bisekcija; HERC (Raffinot 2018) — podjela kapitala niz dendrogram po jednakom
+  doprinosu riziku; NCO (López de Prado 2019) — ugniježđena min-var unutar i
+  među klasterima. Korelacijska verzija gradi stablo iz `d = √(½(1−ρ))`,
+  faktorska iz Wardova stabla na petfaktorskim značajkama. Vlastite
+  implementacije validirane su naspram `riskfolio-lib`/`skfolio`.
+- **Overlay.** Projekcijski QP `min ‖w − w₀‖²_Σ` uz `1'w = 1`, `0 ≤ w ≤ w_max`,
+  `|w'β_f| ≤ ε` za `f ∈ {SMB, HML, RMW, CMA}`, `ε ∈ {0.00, 0.05, 0.10, 0.15}`.
+- **Kovarijanca.** Ledoit–Wolf sažimanje, jednom po prozoru, dijeljeno među
+  alokatorima.
+- **Unaprijedni hod.** Podaci 2000. – 2025.; backtest počinje 2008-01 →
+  prva testna godina 2013., zadnja 2025. (13 disjunktnih testnih godina);
+  univerzum po prozoru = članovi na datum s ≥ 60 mjeseci treninga.
 
-**Klasteriranje (dijagnostički alat).**
-* *Faktorski klasteri* — Wardova veza na euklidskoj udaljenosti nakon standardizacije šest značajki. To je glavni dijagnostički objekt: otkriva faktorsku strukturu univerzuma i identificira u kojim se stilskim skupinama optimizator koncentrira. Klasteri *nisu* popravak.
-* *Korelacijski klasteri* — potpuna veza na unaprijed izračunatoj korelacijskoj udaljenosti `sqrt(2 (1 – ρ))`. Koristi se kao osnovica.
-* *GICS sektori* — treće označavanje, korišteno kao još jedna osnovica.
-
-**Odabir K.** Prosječna silueta u prostoru faktora kroz sve klizne prozore, uz dva ograničenja:
-1. Svaki klaster nosi ≥ 4 dionice u svakom prozoru.
-2. `K × group_cap ≥ 1`, tako da je portfelj sa samo dugim pozicijama ograničen klasterima potpuno investibilan. Uz `group_cap = 0.15` to daje `K ≥ 7`.
-
-Odabrani `K = 7` ponovno se koristi za korelacijsku osnovicu kako bi usporedbe bile istovrsne.
-
-**Portfelji.** Portfelji sa samo dugim pozicijama, potpuno investirani po prozoru, svaki s `w_max = 0.02`:
-
-*Pet dijagnostičkih portfelja* (notebook 03):
-1. Jednake težine (`1/N`).
-2. Minimalna varijanca, bez grupnog ograničenja.
-3. Minimalna varijanca s `Σ_{i ∈ sector_j} w_i ≤ 0.15`.
-4. Minimalna varijanca s `Σ_{i ∈ corr_cluster_k} w_i ≤ 0.15`.
-5. Minimalna varijanca s `Σ_{i ∈ factor_cluster_k} w_i ≤ 0.15`.
-
-*Faktorski neutralna obitelj* (notebook 05 — djelotvoran popravak):
-6. Minimalna varijanca s `|w' β_f| ≤ ε` za `f ∈ {SMB, HML, RMW, CMA}` pri `ε ∈ {0.00, 0.05, 0.10, 0.15}`.
-7. Hibrid: ograničenje klastera + faktorska neutralnost (uključen radi cjelovitosti; dominira ga čista faktorski neutralna obitelj).
-
-Kovarijanca je Ledoit-Wolf sažimanje na mjesečnim prinosima treniranja, anualizirano s × 12.
-
-**Unaprijedni hod.**
-* **Prozor projekta:** `2005-01` do `2025-12` (21 godina mjesečnih podataka).
-* **Treniranje / testiranje:** prozor od 60 mjeseci unatrag / 12 mjeseci unaprijed.
-* **Ritam ponovnog procjenjivanja:** svakih 12 mjeseci → 16 disjunktnih testnih godina (2010. – 2025.).
-* **Univerzum po prozoru:** dionice s ≥ 60 valjanih mjeseci treniranja i čistom petfaktorskom prilagodbom (granice kvalitete podataka na betama, rezidualnoj volatilnosti i R²).
-
-**Bootstrap stabilnost.** 500 bootstrap ponovnih uzoraka univerzuma na reprezentativnom prozoru, uspoređujući dobiveno klasteriranje s klasteriranjem na punom uzorku putem Jaccarda zajedničke pripadnosti po parovima. Izvještava se po tipu klasteriranja.
-
-Potpuni detalji, motivacija i ograničenja nalaze se u [`PROJECT_SPEC.md`](PROJECT_SPEC.md).
+Potpuni detalji, motivacija i ograničenja: [`PROJECT_SPEC.md`](PROJECT_SPEC.md).
 
 ---
 
@@ -180,19 +223,16 @@ Potpuni detalji, motivacija i ograničenja nalaze se u [`PROJECT_SPEC.md`](PROJE
 
 | Faza | Opseg | Stanje |
 |---|---|---|
-| 1 | Prikupljanje podataka, mjesečni prinosi, faktori | **gotovo** |
-| 2 | Petfaktorske regresije po prozoru | **gotovo** |
-| 3 | Hijerarhijsko klasteriranje + bootstrap stabilnost | **gotovo** |
-| 4 | Konstrukcija pet portfelja unaprijednim hodom | **gotovo** |
-| 5 | Evaluacija izvan uzorka, bootstrap CI, prelet osjetljivosti | **gotovo** |
-| 6 | Izravan popravak faktorske neutralnosti + završni izvještaj | **gotovo** |
-| 7 | Klasteriranje usklađeno s kolegijem: K-means/k-medoid/GMM/DBSCAN + odabir K CH/Gapom (notebook 07) | **gotovo** |
-| 8 | Nadzirano proširenje: stablo odlučivanja + ansambli na padu (notebook 08) | **gotovo** |
-
-Vidi [`reports/final_report.md`](reports/final_report.md) za potpun dijagnostički izvještaj; § 11 pokriva pokrivenost metoda kolegija (algoritmi klasteriranja i nadzirano stablo). PDF-ovi predavanja nalaze se u [`materials/`](materials/) (vidi [`materials/README.md`](materials/README.md)).
+| 0 | Podatkovni temelj: point-in-time S&P 500, pokrivenost, troškovi, config, testovi | **gotovo** |
+| 1 | Replikacija HRP/HERC/NCO (korelacijski prostor) + validacija + MCS | **gotovo** |
+| 2 | Dijagnoza skrivenog stilskog rizika (H1) | **gotovo** |
+| 3 | Intervencija u faktorskom prostoru hijerarhije (H2) | **gotovo** |
+| 4 | Overlay QP mehanizam i lijek (H3) + DSR + granica + finalni MCS | **gotovo** |
+| 5 | Pisanje i pakiranje: izvještaj, master tablica, README, `run_all.sh` | **u tijeku** |
 
 ---
 
 ## Licenca
 
-Akademska uporaba. Vrijede licence izvornih podataka (Yahoo Finance, knjižnica podataka Kennetha Frencha, Wikipedia).
+Akademska uporaba. Vrijede licence izvornih podataka (Yahoo Finance, Stooq,
+knjižnica podataka Kennetha Frencha, javna rekonstrukcija članstva S&P 500).

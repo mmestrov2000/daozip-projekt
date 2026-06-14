@@ -849,7 +849,7 @@ samo konsolidacija, tekst i pakiranje).
     referencu na tablicu/figuru koja postoji u `outputs/`.
   - Ovisnosti: F5.1
   - *Odstupanje:* `izvjestaj.tex` napisan iznova oko novog dizajna (HRP/HERC/NCO, 2×2 faktorijal, S&P 500 2013–2025, w_max 0.05, K=10) — stari Russell/min-var brojevi u potpunosti zamijenjeni korigiranom bazom; H1–H3 unaprijed, faze 1→4, stari projekt ugnježđen kao referenca (§„Stari projekt”). Figure prefiksa `11_*` ne postoje (Faza 3 dala samo tablice) → kopirane su sve raspoložive iz `{00,09,10,12}` (`fig01`–`fig05`), Faza 3 izvještena tablicama. Svaka tablica rezultata nosi `Izvor:` na svoj `outputs/tables/*.csv` (13 jedinstvenih CSV-a, svi postoje), figure referenciraju 5 kopiranih PNG-ova. Kompilirano lokalno **tectonicom** (pdflatex/xelatex nedostupni) → koristi se `\else` (fontspec+polyglossia) grana preambule; `reports/izvjestaj.pdf` regeneriran (13 str., bez grešaka/overfull). Stari `fig01`–`fig08` ostavljeni u `reports/figures/` (čišćenje je F5.5); notebook 07 (robusnost) i 08 (jedna rečenica) ukey. u zaključku.
-- [ ] **F5.3 — Novi README** (M)
+- [x] **F5.3 — Novi README** (M)
   - Opis: napisati iznova (tek u zadnjoj fazi — zaključana odluka 10): nova
     identitetska rečenica, glavna tablica (iz `13_master_table.csv`, skraćena),
     struktura repoa (bez referenci na nepostojeće datoteke — pretpostavka 1),
@@ -860,7 +860,8 @@ samo konsolidacija, tekst i pakiranje).
     (provjera: svaki spomenuti put postoji); glavni brojevi se podudaraju s
     `13_master_table.csv`.
   - Ovisnosti: F5.1, F5.4
-- [ ] **F5.4 — Reproducibilnost: jedan skriptirani put** (M)
+  - *Odstupanje:* README napisan iznova oko novog dizajna (HRP/HERC/NCO, 2×2 faktorijal, S&P 500 2013–2025, w_max 0.05, K=10); uklonjene sve mrtve reference starog README-a (`final_report.md`, `materials/`, `scripts/build_notebooks.py`, `src/supervised.py` → sad u `archive/`) i Russell/min-var sadržaj. Glavna tablica = skraćeni master (8 baznih portfelja) + 2×2 faktorijal; svi brojevi izvučeni izravno iz `13_master_table.csv`/`13_factorial_2x2.csv` (master 37×29). Kriterij „svaki put postoji” verificiran skriptom: svih 45 stavki strukturnog stabla + 15 eksplicitnih linkova razriješeno; jedina dva slash-tokena (`1/N`, `~N²/2`) su matematička notacija, ne putovi.
+- [x] **F5.4 — Reproducibilnost: jedan skriptirani put** (M)
   - Opis: `scripts/run_all.sh` (ili `Makefile`): redom `pytest`, pa
     `jupyter nbconvert --to notebook --execute --inplace` za notebookove
     01, 02, 03, 05, 07, 09, 10, 11, 12, 13 (04 zadržati u nizu ako ostaje u
@@ -870,6 +871,7 @@ samo konsolidacija, tekst i pakiranje).
   - Prihvaćanje: jedna naredba na čistom okruženju (uz postojeću parquet
     predmemoriju) regenerira sve tablice i figure koje izvještaj citira.
   - Ovisnosti: F5.1
+  - *Odstupanje:* `scripts/run_all.sh` (bash, ne Makefile): auto-odabir interpretera (aktivirani venv → `.venv/bin/python` → `python3`), `pytest` pa `nbconvert --execute --inplace --ExecutePreprocessor.timeout=-1` (dodan timeout=-1 zbog dugih ćelija 01/02) za notebookove 01,02,03,05,07,09,10,11,12,13; 04 (stara evaluacija) i 06 (stari sažetak) dokumentirani kao izvan glavnog tijeka (zamijenili ih 10/12/13), 08 arhiviran → ne izvršavaju se. Skripta NIJE pokrenuta end-to-end jer Faza 5 zabranjuje preračunavanje („nikakvo preračunavanje u ovoj fazi”); verificirana po dijelovima: korijen-cd + odabir interpretera + `bash -n` čist, korak pytest zelen (75 prošlo / 4 preskočeno), točan oblik nbconvert naredbe izvršen na throwaway notebooku (exit 0, execution_count 1) — svaki glavni notebook ionako već izvršen/verificiran u svojoj fazi (PROGRESS).
 - [ ] **F5.5 — Završno čišćenje i commit politika izlaza** (S)
   - Opis: committati finalne tablice/figure koje izvještaj citira (riješeno
     pitanje 4), ažurirati `.gitignore` za međupanele; ukloniti zastarjele
