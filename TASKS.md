@@ -830,7 +830,7 @@ samo konsolidacija, tekst i pakiranje).
     brojevi se podudaraju s izvornim tablicama faza 1–4 (provjera spot-uzorkom).
   - Ovisnosti: F4.6
   - *Odstupanje:* master tablica = 37 portfelja završne usporedbe (≥ 20) × 28 stupaca; konsolidacija je čisto lijevo spajanje zamrznutih tablica po imenu portfelja — stil/vol iz `12_frontier_points`, Sharpe/DSR iz `12_dsr`, MCS bruto/neto iz `12_mcs_final`, FF5 bete (+α, R²) iz `10_attribution_full_sample` (postoje samo za 10 dijagnostičkih portfelja Faze 2 → ostali NaN, bez naknadne regresije), bootstrap CI stila iz `10_bootstrap_ci` (6). MDD, obrtaj i eff. N (= prosjek 1/Σw² kroz prozore) nisu persistirani pa su izračunati kao deskriptivne statistike iz **spremljenih** panela prinosa/težina (nije ponovni backtest; eff. N je obvezan stupac, a nema druge dostupne tablice) — podudarnost s `09_replication_summary` (10 preklopa) provjerena u ćeliji 13.5 (max |Δ| MDD 2,8e-16, obrtaj 2,8e-15). 2×2 koristi `hrp_corr_ward` kao korelacijsku HRP bazu (K1) i overlay ε=0 (najstrože, kao parne razlike F4.6); ćelija = prosjek stila/vol preko HRP/HERC/NCO. Rezultat: overlay smanjuje srednju koncentraciju stila u oba prostora (korelacijski 0,647→0,435; faktorski 0,660→0,509) uz zanemarivu promjenu vol — kvantificirana potpora H3. Notebook izvršen end-to-end (nbconvert); generiran jednokratnim graditeljem koji je potom uklonjen (pretpostavka 4 / presedan F1.5).
-- [ ] **F5.2 — Restrukturiranje izvještaja** (L)
+- [x] **F5.2 — Restrukturiranje izvještaja** (L)
   - Opis: prerada `reports/izvjestaj.tex`: uvod s pregledom literature (López de
     Prado 2016, 2019; Raffinot 2018; Scherer 2011; Novy-Marx 2014; Hansen et al.
     2011; Bailey & López de Prado 2014) i **hipotezama H1–H3 unaprijed**;
@@ -848,6 +848,7 @@ samo konsolidacija, tekst i pakiranje).
   - Prihvaćanje: PDF se kompilira bez grešaka; svaka tvrdnja u rezultatima ima
     referencu na tablicu/figuru koja postoji u `outputs/`.
   - Ovisnosti: F5.1
+  - *Odstupanje:* `izvjestaj.tex` napisan iznova oko novog dizajna (HRP/HERC/NCO, 2×2 faktorijal, S&P 500 2013–2025, w_max 0.05, K=10) — stari Russell/min-var brojevi u potpunosti zamijenjeni korigiranom bazom; H1–H3 unaprijed, faze 1→4, stari projekt ugnježđen kao referenca (§„Stari projekt”). Figure prefiksa `11_*` ne postoje (Faza 3 dala samo tablice) → kopirane su sve raspoložive iz `{00,09,10,12}` (`fig01`–`fig05`), Faza 3 izvještena tablicama. Svaka tablica rezultata nosi `Izvor:` na svoj `outputs/tables/*.csv` (13 jedinstvenih CSV-a, svi postoje), figure referenciraju 5 kopiranih PNG-ova. Kompilirano lokalno **tectonicom** (pdflatex/xelatex nedostupni) → koristi se `\else` (fontspec+polyglossia) grana preambule; `reports/izvjestaj.pdf` regeneriran (13 str., bez grešaka/overfull). Stari `fig01`–`fig08` ostavljeni u `reports/figures/` (čišćenje je F5.5); notebook 07 (robusnost) i 08 (jedna rečenica) ukey. u zaključku.
 - [ ] **F5.3 — Novi README** (M)
   - Opis: napisati iznova (tek u zadnjoj fazi — zaključana odluka 10): nova
     identitetska rečenica, glavna tablica (iz `13_master_table.csv`, skraćena),

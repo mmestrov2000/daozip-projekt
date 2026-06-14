@@ -43,14 +43,17 @@
 \widowpenalty=10000
 \displaywidowpenalty=10000
 
+% kratica za navođenje izvora podataka uz tablice/figure
+\newcommand{\izvor}[1]{{\footnotesize\textit{Izvor:} \texttt{#1}}}
+
 \begin{document}
 \thispagestyle{plain}
 \begin{center}
   \vspace*{1.0cm}
-  {\Large\bfseries Skriveni faktorski rizik u portfeljima minimalne varijance\par}
+  {\Large\bfseries Gdje nastaje stilski rizik hijerarhijske alokacije?\par}
   \vspace{0.35cm}
-  {\large Analiza i korekcija hijerarhijskim klasteriranjem na indeksu Russell 1000
-  (2005.--2025.)\par}
+  {\large Kontrolirana studija prostora hijerarhije i overlay ograničenja
+  faktorskih beta na indeksu S\&P~500 (2013.--2025.)\par}
 
   \vfill
 
@@ -65,17 +68,30 @@
 
   {\bfseries Sažetak\par}
   \vspace{0.55em}
-  \begin{minipage}{0.84\textwidth}
+  \begin{minipage}{0.86\textwidth}
     \small
-    Portfelji minimalne varijance s long pozicijama uobičajeno se promatraju kao
-    neutralna referenca: po konstrukciji minimiziraju varijancu. Ovaj projekt pokazuje da takvi portfelji nose
-    skrivenu izloženost prema Fama--French faktorima profitabilnosti
-    (RMW) i ulaganja (CMA), te da taj nagib ostaje skriven i sektorskoj i korelacijskoj
-    diverzifikaciji. Dijagnozu radimo klasteriranjem dionica u prostoru faktorske
-    izloženosti. Klasteriranje ispravno \emph{lokalizira} problem, no intuitivni ispravak 
-    (ograničenje težine po klasteru) pokazuje se neuspješnim. Uspješan ispravak je
-    izravno linearno ograničenje na faktorske bete portfelja, koje ostvarenu koncentraciju
-    stila smanjuje za 31\,\% uz zanemariv trošak u volatilnosti ($p \approx 0.002$).
+    Hijerarhijski alokatori (HRP, HERC, NCO) obećavaju diverzifikaciju bez
+    procjene očekivanih prinosa, ali nasljeđuju inverzno-varijančni mehanizam
+    minimalne varijance. Pitamo \emph{gdje} u cjevovodu nastaje stilski rizik:
+    u prostoru u kojem se hijerarhija gradi (korelacijskom naspram faktorskom)
+    ili u mehanizmu alokacije i ograničenja. Na point-in-time univerzumu
+    S\&P~500 (2013.--2025., 13 prozora), držeći metodu veze konstantnom
+    (Wardova veza u oba kraka), manipuliramo isključivo ulazom u hijerarhiju i
+    dodajemo projekcijski QP overlay $|w^{\!\top}\beta_f|\le\varepsilon$ na
+    hijerarhijske težine $\rightarrow$ potpuni 2$\times$2 faktorijal
+    \{prostor\}$\times$\{bez/sa ograničenjem\}. Nalazi: (\textbf{H1}) NCO u
+    cijelosti nasljeđuje RMW/CMA nagib (koncentracija stila $0.80\approx$ min-var
+    $0.78\gg 1/N$ $0.59$); HRP i HERC nasljeđuju \emph{mehanizam} (težina raste
+    s padom rezidualne volatilnosti i porastom CMA-izloženosti), ali ga
+    raspršuju na razinu $1/N$. (\textbf{H2}) faktorski prostor \emph{ne}
+    neutralizira nagib (razlika obuhvaća nulu), a očekivani dobitak u stabilnosti
+    klastera ne ostvaruje se pri $K=10$ -- jedina mu je konkretna prednost
+    parsimonija ($\sim$34$\times$ manje parametara). (\textbf{H3}) jedini
+    mehanizam koji nagib uklanja jest izravno linearno ograničenje na bete;
+    primijenjen kao overlay, značajno smanjuje koncentraciju stila (5/6
+    varijanti) uz zanemariv trošak u volatilnosti i dominira na granici
+    stil--volatilnost. Stari projekt (dijagnoza min-vara i izravna neutralnost)
+    ugnježđuje se kao referentna obitelj.
   \end{minipage}
   \vspace*{1.0cm}
 \end{center}
@@ -85,368 +101,666 @@
 \tableofcontents
 \clearpage
 
-\section{Ciljevi}
+\section{Uvod i hipoteze}
 
-Hipoteza projekta jest da klasična minimizacija rizika daje prednost
-određenom području faktorskoga prostora te tako gradi skrivenu stilsku izloženost.
-Postavljamo tri pitanja:
+Portfelji minimalne varijance s dugim pozicijama uobičajeno se promatraju kao
+neutralna referenca, no poznato je da nose sustavnu izloženost faktorima:
+optimizacija koja minimizira varijancu favorizira niskovolatilne dionice, a te
+su dionice ujedno sklone profilu visoke profitabilnosti i niskoga ulaganja
+(Scherer, 2011; Novy-Marx, 2014). Prethodna faza ovog projekta pokazala je
+upravo to na min-var portfelju te utvrdila da grupna ograničenja po klasteru ne
+uklanjaju nagib, dok ga izravno linearno ograničenje na faktorske bete uklanja.
 
-\begin{enumerate}
-  \item \textbf{Istraživanje.} Nose li portfelji minimalne varijance skrivenu stilsku izloženost i
-        može li se ona učiniti vidljivom klasteriranjem u prostoru faktora?
-  \item \textbf{Neuspješan ispravak.} Ako klasteri ocrtavaju problem, ublažava li ga
-        ograničavanje težine portfelja po klasteru?
-  \item \textbf{Uspješan ispravak.} Ako ne, možemo li naći ograničenje koje zapravo smanjuje stilsku izloženost bez žrtvovanja niske volatilnosti?
-\end{enumerate}
+Moderni \emph{hijerarhijski} alokatori --- Hierarchical Risk Parity (HRP; López
+de Prado, 2016), Hierarchical Equal Risk Contribution (HERC; Raffinot, 2018) i
+Nested Clustered Optimization (NCO; López de Prado, 2019) --- predstavljaju se
+kao robusnija alternativa: izbjegavaju invertiranje loše uvjetovane kovarijance
+tako što kapital raspoređuju niz dendrogram dobiven klasteriranjem. Pritom dijele
+istu inverzno-varijančnu jezgru kao minimalna varijanca. Otvoreno je pitanje
+\textbf{gdje u njihovu cjevovodu nastaje stilski rizik}: u \emph{prostoru} u
+kojem se hijerarhija gradi ili u \emph{mehanizmu} alokacije i ograničenja.
 
-Metodološki fokus je na klasteriranju kao alatu za otkrivanje znanja: ono nije
-tek opisni korak, nego okvir kroz koji tumačimo analizu i ideju hipoteze za
-ispravak. Uz glavni tijek analize, projekt sustavno obuhvaća metode obrađene u kolegiju (particijsko, vjerojatnosno i klasteriranje utemeljeno na gustoći, odabir broja klastera
-indeksima interne validacije te nadzirana stabla odlučivanja i ansamble).
+\paragraph{Dizajn kontrolirane studije.} Jedina manipulirana varijabla jest
+ulaz u izgradnju hijerarhije: \emph{korelacijsko} stablo naspram \emph{Wardova}
+stabla na standardiziranim petfaktorskim značajkama. Da usporedba prostora ne
+konfundira metodu veze, kontrolirana usporedba drži vezu konstantnom ---
+\textbf{Wardova veza u oba kraka} (\texttt{hrp\_corr\_ward} naspram
+\texttt{hrp\_factor}); jednostruka veza vjerna izvorniku (\texttt{hrp\_corr\_single})
+zadržava se isključivo kao replikacijski red. Sve ostalo je identično:
+point-in-time S\&P~500, isti prozori, ista Ledoit--Wolfova kovarijanca, isti
+$w_{\max}$, iste metrike. U završnoj fazi dodaje se projekcijski QP overlay
+$|w^{\!\top}\beta_f|\le\varepsilon$ na hijerarhijske težine, čime nastaje potpuni
+2$\times$2 faktorijal \{prostor hijerarhije\}$\times$\{bez/sa ograničenjem\}.
+
+\paragraph{Hipoteze (postavljene unaprijed).} Primarni ishod je
+\emph{koncentracija stila}
+$\;|\beta_{\text{SMB}}| + |\beta_{\text{HML}}| + |\beta_{\text{RMW}}| + |\beta_{\text{CMA}}|$
+iz petfaktorske atribucije ostvarenih testnih prinosa.
+
+\begin{itemize}
+  \item \textbf{H1.} Korelacijski HRP/HERC/NCO nasljeđuju skriveni RMW/CMA nagib
+        minimalne varijance (mehanizam: inverzno-varijančna alokacija favorizira
+        niskovolatilne grane; Scherer, 2011; Novy-Marx, 2014). \emph{Testira se u
+        Fazi 2.}
+  \item \textbf{H2.} Ni faktorski prostor hijerarhije ne neutralizira nagib
+        (lekcija da upravljanje težinama skupina ne cilja pojedinačnu betu), ali
+        donosi mjerljive dobitke u stabilnosti klastera, obrtaju i
+        interpretabilnosti (redukcija dimenzije: $\sim N^2/2$ korelacija naspram
+        $6N$ beta). \emph{Testira se u Fazi 3.}
+  \item \textbf{H3.} Jedini mehanizam koji nagib stvarno uklanja jest izravno
+        linearno ograničenje na bete; primijenjeno kao overlay na hijerarhijske
+        težine, dominira na granici koncentracija stila $\times$ ostvarena
+        volatilnost. \emph{Testira se u Fazi 4.}
+\end{itemize}
+
+\paragraph{Mjesto u literaturi.} HRP (López de Prado, 2016) gradi težine
+kvazidijagonalizacijom korelacijske matrice i rekurzivnom bisekcijom; NCO (López
+de Prado, 2019) ugnježđuje min-var unutar i među klasterima; HERC (Raffinot,
+2018) dijeli kapital niz dendrogram po jednakom doprinosu riziku. Kovarijancu
+procjenjujemo Ledoit--Wolfovim sažimanjem (Ledoit \& Wolf, 2004), a faktorsku
+strukturu petfaktorskim modelom (Fama \& French, 2015). Za statističku
+inferenciju koristimo blok-bootstrap, Model Confidence Set (Hansen, Lunde \&
+Nason, 2011) i Deflated Sharpe Ratio (Bailey \& López de Prado, 2014). Doprinos
+rada nije nov alokator, nego \emph{kontrolirana dekompozicija} koja izolira gdje
+nastaje stilski rizik i koji ga mehanizam uklanja.
 
 \section{Podaci}
 
 \begin{itemize}
-  \item \textbf{Skup dionica.} Trenutni sastav indeksa Russell 1000 (1.002 dionice s
-        pripadajućim GICS sektorima).
-  \item \textbf{Cijene.} Dnevne prilagođene zaključne cijene (Yahoo Finance, \texttt{yfinance}),
-        agregirane na zadnji dan u mjesecu.
-  \item \textbf{Faktori.} Fama--French petfaktorski mjesečni prinosi iz zbirke podataka
-        Kennetha Frencha (MKT, SMB, HML, RMW, CMA).
-  \item \textbf{Razdoblje.} Od siječnja 2005. do prosinca 2025.\ (21 godina). Prvih pet
-        godina čini prvi prozor procjene, a testne godine teku od 2010.\ do 2025.
+  \item \textbf{Skup dionica.} Point-in-time sastav indeksa S\&P~500. Panel se
+        gradi preko unije svih tickera koji su ikad članovi u razdoblju
+        2000.--2025., a po prozoru se reže na članstvo na datum kraja treniranja.
+        Članstvo se rekonstruira iz javnog izvora (\texttt{fja05680/sp500}); spot-provjere
+        poznatih indeksnih događaja (TSLA ulazi 2020-12, GM izlazi 2009-06, LEH
+        izlazi 2008-09) prolaze.
+  \item \textbf{Cijene.} Mjesečni prinosi iz prilagođenih zaključnih cijena
+        (Yahoo Finance \texttt{yfinance}, sekundarno Stooq), sanirani na fizički
+        moguć pojas $[-90\,\%, +300\,\%]$.
+  \item \textbf{Faktori.} Fama--Frenchovi petfaktorski mjesečni prinosi
+        (Ken French): MKT, SMB, HML, RMW, CMA.
+  \item \textbf{Razdoblje backtesta.} Iako se podaci preuzimaju od 2000., klizni
+        hod počinje od $2008$-$01$, pa je prva testna godina \textbf{2013.}, a
+        zadnja \textbf{2025.} (13 prozora, 156 testnih mjeseci).
 \end{itemize}
 
-Univerzum raste s približno 600 dionica u prozoru 2009-12 na približno 880 u prozoru
-2024-12, kako dionice s kasnijim IPO-om počinju ispunjavati uvjete (slika~\ref{fig:coverage}).
+\paragraph{Pokrivenost kao izmjerena veličina.} Pristranost preživljavanja u
+point-in-time okviru manifestira se kao \emph{nedostajući članovi}: jezgra od
+321 delistanog imena iz pre-2010 razdoblja nema Yahoo povijest, no ta imena nisu
+članovi u zadržanim prozorima pa ih point-in-time presjek korektno izostavlja.
+Mjerimo udio članova s $\ge 60$ valjanih mjeseci treniranja: raste s
+$54.75\,\%$ (prozor 2004-12) na $95.63\,\%$ (2024-12) (tablica~\ref{tab:cov},
+slika~\ref{fig:coverage}). Upravo zbog niske rane pokrivenosti backtest je
+podrezan na 2013.--2025., gdje je univerzum konzistentan ($N$ po prozoru
+$347$--$481$, prosjek $\sim 411$).
+
+\begin{table}[!htbp]
+  \centering
+  \caption{Pokrivenost po odabranim prozorima procjene (cijeli dokument ima 21
+  redak).}
+  \label{tab:cov}
+  \small
+  \begin{tabular}{lrrrr}
+    \toprule
+    Kraj treniranja & članova & s cijenama & s $\ge 60$ mj. & \% $\ge 60$ mj. \\
+    \midrule
+    2004-12 & 495 & 284 & 271 & 54.75 \\
+    2009-12 & 499 & 339 & 322 & 64.53 \\
+    2012-12 & 497 & 362 & 349 & 70.22 \\
+    2016-12 & 506 & 411 & 390 & 77.08 \\
+    2020-12 & 505 & 451 & 439 & 86.93 \\
+    2024-12 & 503 & 491 & 481 & 95.63 \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/00\_membership\_coverage.csv}
+\end{table}
 
 \begin{figure}[!htbp]
   \centering
-  \includegraphics[width=0.78\linewidth]{fig01-universe-coverage.png}
-  \caption{Pokrivenost univerzuma kroz klizne prozore procjene: broj dionica s najmanje
-  60 valjanih mjeseci i čistom petfaktorskom prilagodbom.}
+  \includegraphics[width=0.76\linewidth]{fig01-membership-coverage.png}
+  \caption{Pokrivenost univerzuma kroz klizne prozore: broj članova, broj s
+  valjanim cijenama i broj koji prolazi filtar $\ge 60$ mjeseci treniranja.}
   \label{fig:coverage}
 \end{figure}
 \FloatBarrier
 
 \section{Metodologija}
 
-\paragraph{Značajke dionice.} Za svaki par (prozor, dionica) procjenjujemo OLS
-petfaktorsku regresiju (metoda najmanjih kvadrata) na viškovima prinosa i bilježimo
-\[
-  (\alpha,\ \beta_{\text{MKT}},\ \beta_{\text{SMB}},\ \beta_{\text{HML}},\
-  \beta_{\text{RMW}},\ \beta_{\text{CMA}},\ \sigma_\varepsilon,\ R^2).
-\]
-Prilagodbe koje krše granice kvalitete
-($|\beta|\le 5$, $\sigma_\varepsilon\le 0.50$, $R^2\ge 0.05$) izbacuju se iz toga prozora.
-
-\paragraph{Klasteriranje.} Glavni predmet istraživanja jesu faktorski klasteri:
-Wardova veza na euklidskoj udaljenosti nad šest standardiziranih značajki:
+\paragraph{Značajke i klasteriranje.} Za svaki par (prozor, dionica)
+procjenjujemo OLS petfaktorsku regresiju na viškovima prinosa iz trailing 60
+mjeseci i bilježimo $\alpha$, pet faktorskih beta, rezidualnu volatilnost
+$\sigma_\varepsilon$ i $R^2$; prilagodbe izvan granica kvalitete ($|\beta|\le 5$,
+$\sigma_\varepsilon\le 0.50$, $R^2\ge 0.05$) izbacuju se iz tog prozora.
+\emph{Faktorsko} stablo gradi se Wardovom vezom na šest standardiziranih značajki
 \[
   (\beta_{\text{MKT}},\ \beta_{\text{SMB}},\ \beta_{\text{HML}},\
-  \beta_{\text{RMW}},\ \beta_{\text{CMA}},\ \sigma_\varepsilon).
+   \beta_{\text{RMW}},\ \beta_{\text{CMA}},\ \sigma_\varepsilon),
 \]
-Kao referentne podjele za usporedbu služe
-\emph{korelacijski klasteri} (potpuna veza na udaljenosti $\sqrt{2(1-\rho)}$) i
-\emph{GICS sektori}. Broj klastera $K=7$ najveća je vrijednost po prosječnoj silueti koja
-zadovoljava dva uvjeta uloživosti: svaki klaster ima $\ge 4$ dionice u svakom prozoru, a
-vrijedi i $K \times \text{group\_cap} \ge 1$ uz $\text{group\_cap}=0.15$.
+a \emph{korelacijsko} stablo na udaljenosti $d=\sqrt{\tfrac12(1-\rho)}$
+jednostrukom vezom (vjerni izvornik) odnosno Wardovom vezom (nositelj
+kontrolirane usporedbe).
 
-\paragraph{Portfelji.} Svi su portfelji isključivo s long pozicijama, u svakom prozoru
-potpuno uloženi, uz ograničenje pojedinačne pozicije $w_{\max}=0.02$:
-
-\begin{enumerate}
-  \item jednake težine $1/N$;
-  \item minimalna varijanca bez grupnoga ograničenja;
-  \item minimalna varijanca uz $\sum w_i \le 0.15$ unutar svakog GICS sektora;
-  \item isto grupno ograničenje na korelacijskim klasterima;
-  \item isto grupno ograničenje na faktorskim klasterima;
-  \item faktorski neutralna minimalna varijanca:
-        $|w^{\!\top}\beta_f|\le\varepsilon$ za $f\in\{\text{SMB, HML, RMW, CMA}\}$,
-        uz $\varepsilon\in\{0.00, 0.05, 0.10, 0.15\}$.
-\end{enumerate}
-
-Kovarijancu procjenjujemo Ledoit--Wolfovim sažimanjem na mjesečnim prinosima iz prozora
-procjene, preračunatu na godišnju razinu množenjem s 12. Glavna mjera izloženosti jest
-\textbf{koncentracija stila}
-$\;|\beta_{\text{SMB}}| + |\beta_{\text{HML}}| + |\beta_{\text{RMW}}| + |\beta_{\text{CMA}}|$.
-
-\paragraph{Klizni walk-forward postupak i bootstrap.} Prozor procjene
-obuhvaća 60 mjeseci unatrag, testni horizont 12 mjeseci, a ponovnu procjenu provodimo
-svakih 12 mjeseci $\rightarrow$ 16 disjunktnih testnih godina (2010.--2025.). Za intervale
-pouzdanosti razlika među metrikama koristimo blok-bootstrap (pomični blokovi od 12
-mjeseci, 1000 ponovnih uzoraka).
-
-\section{I: Istraživanje}
-
-\subsection{Klasteriranje otkriva faktorsku strukturu}
-
-Faktorsko klasteriranje dijeli skup dionica na sedam stilski koherentnih skupina.
-Radar-grafovi centroida (slika~\ref{fig:radar}) prikazuju njihove standardizirane faktorske
-profile, a UMAP-projekcija, obojena na tri načina (slika~\ref{fig:umap}), otkriva ključan
-nalaz: faktorski klasteri dijele univerzum po granicama koje ne prepoznaju ni korelacijski
-klasteri ni GICS sektori.
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=0.86\linewidth,height=0.56\textheight,keepaspectratio]{fig02-factor-cluster-centroids-radar.png}
-  \caption{Radar-grafovi centroida sedam faktorskih klastera (standardizirani faktorski
-  profili).}
-  \label{fig:radar}
-\end{figure}
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=0.96\linewidth]{fig03-factor-umap-panels.png}
-  \caption{UMAP-projekcija prostora faktora, obojena po faktorskom klasteru, korelacijskom
-  klasteru i GICS sektoru. Faktorska se geometrija ne podudara ni sa sektorima ni s
-  korelacijskom strukturom.}
-  \label{fig:umap}
-\end{figure}
-
-Stabilnost klastera pri bootstrap uzorkovanju umjerena je: srednji Jaccardov
-indeks zajedničke pripadnosti iznosi $0.30$ za faktorske naspram $0.26$ za korelacijske
-klastere, dovoljno da potvrdi kako struktura nije slučajnost svojstvena uzorku.
-\FloatBarrier
-
-\subsection{Skrivena izloženost: minimalna varijanca naginje profitabilnosti i niskom ulaganju}
-
-Petfaktorska atribucija prinosa na punom testnom uzorku otkriva izloženost (tablica~\ref{tab:attr1}).
+\paragraph{Odabir broja klastera.} HRP je $K$-neovisan (cijelo stablo rekurzivnom
+bisekcijom); $K$ ulazi samo u HERC i NCO. Silueta u faktorskom prostoru monotono
+\emph{pada} s $K$ (tablica~\ref{tab:sil}), pa argmax trivijalno vraća najmanji
+$K$ (rubni artefakt; struktura u faktorskom prostoru je slaba). $K$ se zato bira
+\emph{domenski}: pri $\sim 400$ imena $K=10$ daje klastere $\sim 40$ imena,
+dovoljno da hijerarhija ugrize i da unutar-klasterski min-var bude stabilan.
+$K\in\{2,3,20\}$ i k-means drže se kao osjetljivost.
 
 \begin{table}[!htbp]
   \centering
-  \caption{Petfaktorska atribucija na punom uzorku (192 mjeseca).}
-  \label{tab:attr1}
-  \small
-  \begin{tabular}{lrrrrrr}
-    \toprule
-    Portfelj & $\beta_{\text{MKT}}$ & $\beta_{\text{SMB}}$ & $\beta_{\text{HML}}$ &
-    $\beta_{\text{RMW}}$ & $\beta_{\text{CMA}}$ & konc.\ stila \\
-    \midrule
-    Jednake težine                 & 1.11 & 0.49 & +0.09 & 0.08 & 0.17 & 0.83 \\
-    Minimalna varijanca            & 0.66 & 0.20 & $-0.12$ & \textbf{+0.33} & \textbf{+0.34} & 0.98 \\
-    + ograničenje sektora          & 0.68 & 0.21 & $-0.14$ & +0.26 & +0.36 & 0.97 \\
-    + ogr.\ korelacijskih klastera & 0.71 & 0.20 & $-0.09$ & +0.31 & +0.26 & 0.86 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-Minimalna varijanca pokazuje jasnu pozitivnu izloženost faktorima RMW ($+0.33$) i CMA
-($+0.34$) -- prepoznatljiv stil visoke profitabilnosti i niskoga ulaganja. Koncentracija
-stila iznosi $0.98$, znatno iznad vrijednosti $0.83$ portfelja jednakih težina. Sektorsko
-ograničenje smješteno je gotovo točno povrh neograničene minimalne varijance; korelacijsko
-ograničenje koncentraciju umjereno snižava ($0.86$), no razlika nije razlučiva od šuma. Nagib je postojan
-kroz sve režime (slika~\ref{fig:concperyear}): oporavak nakon globalne financijske krize,
-uzlet kvalitetnih dionica nakon 2014., šok pandemije COVID-19 te kamatni ciklus 2022.--2023.
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=0.84\linewidth]{fig04-style-concentration-by-year.png}
-  \caption{Koncentracija stila po testnoj godini za pet izvornih portfelja. Nagib minimalne
-  varijance postojan je kroz režime.}
-  \label{fig:concperyear}
-\end{figure}
-
-Slika~\ref{fig:weights} prikazuje kako svaki portfelj raspoređuje težinu po
-sedam faktorskih klastera. Minimalna varijanca koncentrira približno 84\,\% težine u samo
-dva klastera: defenzivni klaster velikih dionica i klaster niskoga ulaganja, čiji je
-zajednički profil upravo RMW/CMA nagib koji je dijagnoza prepoznala.
-
-\begin{figure}[!h]
-  \centering
-  \includegraphics[width=0.76\linewidth]{fig05-cluster-weight-allocation.png}
-  \caption{Raspodjela težina po sedam faktorskih klastera po portfelju (prozor 2024-12).}
-  \label{fig:weights}
-\end{figure}
-\FloatBarrier
-
-\section{II: Ograničenje po klasteru i neuspjeh}
-
-Intuitivan ispravak glasi: budući da klasteri ocrtavaju stilska područja, ograničavanje
-težine svakog klastera na 15\,\% trebalo bi prisiliti optimizator da se raširi cijelim
-faktorskim prostorom i razrijedi nagib. Rezultat je, međutim, negativan
-(tablica~\ref{tab:fail}).
-
-\begin{table}[!htbp]
-  \centering
-  \caption{Učinak ograničenja faktorskih klastera (puni uzorak).}
-  \label{tab:fail}
-  \small
-  \begin{tabular}{lrrrrrr}
-    \toprule
-    Portfelj & $\beta_{\text{MKT}}$ & $\beta_{\text{SMB}}$ & $\beta_{\text{HML}}$ &
-    $\beta_{\text{RMW}}$ & $\beta_{\text{CMA}}$ & konc.\ stila \\
-    \midrule
-    Minimalna varijanca           & 0.66 & 0.20 & $-0.12$ & +0.33 & +0.34 & 0.98 \\
-    + ogr.\ faktorskih klastera   & 0.83 & 0.55 & $-0.19$ & $-0.15$ & +0.58 & \textbf{1.47} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-Ograničenje jest neutraliziralo ciljani RMW nagib ($+0.33\rightarrow-0.15$), no težinu je
-premjestilo u klastere s jačom izloženošću faktorima SMB i CMA ($\beta_{\text{SMB}}:
-0.20\rightarrow0.55$; $\beta_{\text{CMA}}: 0.34\rightarrow0.58$). Rezultat je portfelj s
-većom ukupnom koncentracijom stila ($1.47$) i za $5.8$ postotnih bodova višom
-godišnjom volatilnošću (blok-bootstrap $p\approx 0.000$).
-
-\paragraph{Zašto ispravak ne uspijeva.} Strukturni je razlog što su Wardovi klasteri u
-prostoru faktora po konstrukciji zbijeni -- svaki je koherentna stilska skupina s
-vlastitim nagibom. Ograničenje grupne težine nadzire koliko težine pripada svakoj
-skupini, ali ne i smjer faktorske izloženosti. Ukupna izloženost portfelja
-težinski je prosjek tih nagiba, koji se ne moraju međusobno poništiti. Ključan je uvid
-sljedeći: klasteri ispravno prepoznaju gdje faktorska struktura leži (odlična
-dijagnostika), ali su pogrešan mehanizam za ograničavanje. Da bi se nagib doista smanjio,
-ograničenje mora djelovati izravno na faktorske bete.
-
-\section{III: Uspješan ispravak: izravna faktorska neutralnost}
-
-Neuspješno ograničavanje po klasteru uputilo je na bolje rješenje. Kvadratni program minimalne
-varijance proširujemo linearnim ograničenjem koje djeluje upravo na geometriji koju je
-klasteriranje otkrilo, tj. na faktorskim betama portfelja:
-\[
-  \big|\, w^{\!\top}\beta_f \,\big| \le \varepsilon,
-  \qquad f \in \{\text{SMB},\ \text{HML},\ \text{RMW},\ \text{CMA}\}.
-\]
-Pritom je $\beta_f$ vektor faktorskih izloženosti dionica procijenjen na istom prozoru
-procjene. $\varepsilon=0$ nameće strogu faktorsku neutralnost u trenutku procjene, dok
-pozitivan $\varepsilon$ dopušta nadziran nagib.
-
-\begin{table}[!htbp]
-  \centering
-  \caption{Atribucija i ostvarena volatilnost faktorski neutralne familije (puni uzorak).}
-  \label{tab:fix}
+  \caption{Prosječna silueta po $K$ u faktorskom prostoru (13 prozora). Nema
+  unutarnjeg optimuma; pad je monoton, $K=2$ je rubni artefakt.}
+  \label{tab:sil}
   \small
   \begin{tabular}{lrrrrrrr}
     \toprule
-    Portfelj & $\beta_{\text{MKT}}$ & $\beta_{\text{SMB}}$ & $\beta_{\text{HML}}$ &
-    $\beta_{\text{RMW}}$ & $\beta_{\text{CMA}}$ & konc.\ stila & god.\ vol. \\
+    $K$ & 2 & 3 & 4 & 5 & 7 & 10 & 12 \\
     \midrule
-    Minimalna varijanca           & 0.66 & +0.20 & $-0.12$ & +0.33 & +0.34 & 0.98 & 12.0\,\% \\
-    faktorski neutralan, $\varepsilon{=}0.00$ & 0.69 & +0.18 & $-0.03$ & +0.26 & +0.20 & \textbf{0.67} & 12.1\,\% \\
-    faktorski neutralan, $\varepsilon{=}0.05$ & 0.68 & +0.19 & $-0.06$ & +0.29 & +0.22 & 0.76 & 12.0\,\% \\
-    faktorski neutralan, $\varepsilon{=}0.10$ & 0.67 & +0.19 & $-0.07$ & +0.31 & +0.24 & 0.81 & 12.0\,\% \\
-    faktorski neutralan, $\varepsilon{=}0.15$ & 0.67 & +0.21 & $-0.11$ & +0.30 & +0.31 & 0.93 & 12.0\,\% \\
+    silueta & 0.349 & 0.185 & 0.166 & 0.148 & 0.127 & 0.118 & 0.119 \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/02\_silhouette\_by\_k.csv}
 \end{table}
 
-Najstroža postavka $\varepsilon=0$ smanjuje ostvarenu koncentraciju stila za 31\,\%
-($0.98\rightarrow0.67$) uz zanemariv trošak u volatilnosti. Blok-bootstrap interval razlike
-koncentracije stila u odnosu na minimalnu varijancu u cijelosti je ispod nule ($-0.31$;
-95\,\% CI $[-0.47,\,-0.09]$; $p=0.002$), dok interval razlike volatilnosti obuhvaća nulu
-($p=0.59$). Upravo je to kompromis koji je dijagnoza tražila (slika~\ref{fig:bootstrap}).
+\paragraph{Alokatori.} Svi alokatori dijele isti post-korak $w_{\max}$
+(iterativno odsijecanje na $w_{\max}=0.05$ s renormalizacijom; uz težine se vraća
+\texttt{capped\_weight\_share}). Rizik je \emph{uvijek} iz proslijeđene
+Ledoit--Wolfove $\Sigma$ (računa se jednom po prozoru i dijeli među alokatorima);
+\textbf{bete služe isključivo za izgradnju hijerarhije, nikad za procjenu rizika}.
+NCO particija = rez hijerarhijskog stabla na $K$ u oba kraka (umjesto k-meansa iz
+izvornog rada). Vlastite implementacije validirane su na sintetičkom primjeru
+naspram referentnih biblioteka (tablica~\ref{tab:lib}): HRP se podudara s
+\texttt{riskfolio-lib} na razini strojne preciznosti, NCO do tolerancije QP
+rješavača; preostale razlike su dokumentirane metodološke varijante, ne greške.
 
 \begin{table}[!htbp]
   \centering
-  \caption{Blok-bootstrap intervali razlika u odnosu na \texttt{min\_var} (1000 ponovnih uzoraka).}
-  \label{tab:boot}
+  \caption{Validacija vlastitih alokatora naspram biblioteka (sintetički primjer,
+  15 imovina).}
+  \label{tab:lib}
+  \small
+  \begin{tabular}{llr l}
+    \toprule
+    Metoda & Biblioteka & max $|\Delta w|$ & Izvor razlike \\
+    \midrule
+    HRP (single) & riskfolio-lib & $2.8\!\times\!10^{-17}$ & identičan algoritam ($\le 10^{-6}$) \\
+    NCO (ward)   & riskfolio-lib & $2.3\!\times\!10^{-5}$  & tolerancija QP rješavača \\
+    HERC (ward)  & skfolio       & $3.7\!\times\!10^{-2}$  & pravilo alokacije (Raffinot vs ERC) \\
+    HRP (single) & skfolio       & $1.3\!\times\!10^{-1}$  & bisekcija po dendrogramu vs seriiranom poretku \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/09\_validation\_vs\_libraries.csv}
+\end{table}
+
+\paragraph{Overlay QP (Faza 4).} Na hijerarhijske težine $w_0$ primjenjujemo
+projekciju
+\[
+  \min_w\ (w-w_0)^{\!\top}\Sigma(w-w_0)\ \ \text{uz}\ \
+  \mathbf{1}^{\!\top}w=1,\ 0\le w\le w_{\max},\
+  |w^{\!\top}\beta_f|\le\varepsilon\ \forall f\in\{\text{SMB,HML,RMW,CMA}\},
+\]
+za $\varepsilon\in\{0,0.05,0.10,0.15\}$ (norma $\Sigma$ primarno = minimalni
+tracking error; euklidska kao robusnost). Bete su iz istog prozora procjene (bez
+gledanja unaprijed). Tri alokatora $\times$ dva prostora $\times$ četiri
+$\varepsilon$ $=$ 24 overlay varijante.
+
+\paragraph{Troškovi i statistika.} Težine su fiksne unutar testne godine; trošak
+se obračunava samo na refit obrtaj $0.5\sum_i|w_{i,t}-w_{i,t-1}|$ uz
+$\text{tc}=10$ bps na prvi mjesec godine. Za intervale razlika koristimo
+blok-bootstrap (pomični blokovi 12 mj., 1000 uzoraka, parne razlike sa
+zajedničkim uzorkovanjem). \textbf{Podjela posla:} Model Confidence Set
+(Hansen, Lunde \& Nason, 2011) odgovara na pitanje \emph{najmanje ostvarene
+varijance}, a Deflated Sharpe Ratio (Bailey \& López de Prado, 2014) na
+\emph{riziku prilagođeni prinos} nakon korekcije za višestruko isprobavanje.
+
+\section{Faza 1: Replikacija u korelacijskom prostoru}
+
+Sva tri alokatora integrirana su u isti klizni walk-forward kao postojeći
+benchmarki, uz dijeljenu $\Sigma$ po prozoru. Replikacijska tablica
+(tablica~\ref{tab:repl}) pokazuje da su sve varijante izvedive u svih 13 prozora
+i da im se rizik kreće u uskom rasponu: ovo je jedna klasa imovine (US large-cap),
+pa prinosi ostaju $\sim 0.97$ korelirani neovisno o alokatoru --- snaga studije
+dolazi iz \emph{dispergije koncentracije stila}, ne iz dekorelacije prinosa.
+
+\begin{table}[!htbp]
+  \centering
+  \caption{Replikacijska tablica: ostvarena godišnja volatilnost, Sharpe (bruto i
+  neto na 10 bps), maksimalni drawdown i prosječni jednostrani obrtaj
+  (156 mjeseci).}
+  \label{tab:repl}
+  \small
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Portfelj & god.\ vol. & Sharpe (br.) & Sharpe (neto) & maks.\ DD & obrtaj \\
+    \midrule
+    jednake težine $1/N$         & 15.6\,\% & 0.78 & 0.78 & $-26.8$\,\% & 0.12 \\
+    minimalna varijanca          & 12.7\,\% & 0.73 & 0.72 & $-19.0$\,\% & 0.52 \\
+    faktorski neutralan $\varepsilon{=}0$ & 13.1\,\% & 0.79 & 0.79 & $-19.2$\,\% & 0.56 \\
+    \texttt{hrp\_corr\_single}\,$^{a}$ & 13.6\,\% & \textbf{0.83} & \textbf{0.83} & $-22.4$\,\% & 0.25 \\
+    \texttt{hrp\_corr\_ward}     & 13.5\,\% & 0.82 & 0.82 & $-22.9$\,\% & 0.25 \\
+    \texttt{herc\_corr}          & 14.3\,\% & 0.74 & 0.73 & $-24.9$\,\% & 0.60 \\
+    \texttt{nco\_corr}\,$^{b}$   & \textbf{12.3\,\%} & 0.80 & 0.80 & $-19.1$\,\% & 0.56 \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  {\footnotesize $^{a}$ vjerna replikacija izvornika (López de Prado, 2016;
+  jednostruka veza), isključivo replikacijski red --- kontrolirana usporedba ide
+  preko \texttt{hrp\_corr\_ward}. $^{b}$ NCO particija = rez stabla na $K$ umjesto
+  k-meansa iz izvornog rada.}\\[0.2em]
+  \izvor{outputs/tables/09\_replication\_summary.csv}
+\end{table}
+
+NCO ostvaruje najnižu volatilnost ($12.3\,\%$), HRP najviši Sharpe ($0.83$);
+kumulativni rast prikazan je na slici~\ref{fig:cumgrowth}. Pri $w_{\max}=0.05$
+cap pritišće zanemarivo (udio na capu $0.07$ kod \texttt{nco\_corr}, $0$ kod
+ostalih hijerarhijskih), pa je mehanizam alokatora vidljiv, a ne artefakt
+ograničenja.
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.80\linewidth]{fig02-cumulative-growth.png}
+  \caption{Kumulativni rast replikacijskih portfelja kroz testno razdoblje
+  (2013.--2025.).}
+  \label{fig:cumgrowth}
+\end{figure}
+\FloatBarrier
+
+\section{Faza 2: Dijagnoza --- nasljeđuju li alokatori nagib? (H1)}
+
+Petfaktorska atribucija ostvarenih prinosa na punom testnom uzorku
+(tablica~\ref{tab:attr}) otkriva jasnu raspodjelu koncentracije stila. Minimalna
+varijanca naginje profitabilnosti i niskom ulaganju ($\beta_{\text{RMW}}=0.28$,
+$\beta_{\text{CMA}}=0.39$; koncentracija stila $0.78$), znatno iznad $1/N$
+($0.59$). \textbf{NCO u cijelosti nasljeđuje taj nagib}
+($\beta_{\text{RMW}}=0.32$, $\beta_{\text{CMA}}=0.37$; koncentracija $0.80\approx$
+min-var), dok HRP i HERC sliježu na razinu $1/N$ ($0.55$--$0.57$), \emph{ispod}
+minimalne varijance.
+
+\begin{table}[!htbp]
+  \centering
+  \caption{Petfaktorska atribucija na punom uzorku (156 mjeseci) i koncentracija
+  stila s 95\,\% blok-bootstrap intervalom.}
+  \label{tab:attr}
+  \footnotesize
+  \setlength{\tabcolsep}{4.2pt}
+  \begin{tabular}{lrrrrrcc}
+    \toprule
+    Portfelj & $\beta_{\text{MKT}}$ & $\beta_{\text{SMB}}$ & $\beta_{\text{HML}}$ &
+    $\beta_{\text{RMW}}$ & $\beta_{\text{CMA}}$ & konc.\ stila & 95\,\% CI \\
+    \midrule
+    jednake težine $1/N$         & 0.98 & 0.17 & +0.18 & 0.17 & 0.07 & 0.59 & $[0.45,\,0.72]$ \\
+    minimalna varijanca          & 0.73 & 0.04 & $-0.07$ & \textbf{+0.28} & \textbf{+0.39} & 0.78 & $[0.49,\,1.34]$ \\
+    \texttt{hrp\_corr\_single}   & 0.86 & 0.08 & +0.05 & +0.24 & +0.18 & 0.55 & $[0.38,\,0.83]$ \\
+    \texttt{hrp\_corr\_ward}     & 0.85 & 0.06 & +0.08 & +0.25 & +0.18 & 0.57 & $[0.41,\,0.81]$ \\
+    \texttt{herc\_corr}          & 0.78 & 0.01 & +0.07 & +0.23 & +0.25 & 0.57 & $[0.41,\,1.21]$ \\
+    \texttt{nco\_corr}           & 0.72 & $-0.07$ & $-0.04$ & \textbf{+0.32} & \textbf{+0.37} & \textbf{0.80} & $[0.63,\,1.28]$ \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/10\_attribution\_full\_sample.csv, 10\_hidden\_style\_exposures.csv}
+\end{table}
+
+Parne blok-bootstrap razlike (tablica~\ref{tab:h1diff}) kvantificiraju nalaz:
+\texttt{nco\_corr} se ne razlikuje od minimalne varijance po koncentraciji stila
+($\Delta=+0.02$, $p=0.64$), ali je značajno iznad $1/N$ ($\Delta=+0.20$,
+$p=0.038$). HRP i HERC su \emph{ispod} minimalne varijance, no razlika je
+granična ($\texttt{hrp\_corr\_single}$ $\Delta=-0.23$, $p=0.052$).
+
+\begin{table}[!htbp]
+  \centering
+  \caption{Blok-bootstrap razlike koncentracije stila (zajedničko uzorkovanje,
+  1000 uzoraka).}
+  \label{tab:h1diff}
+  \small
+  \begin{tabular}{llrrc}
+    \toprule
+    Portfelj & u odnosu na & $\Delta$ konc.\ stila & 95\,\% CI & $p$ \\
+    \midrule
+    \texttt{hrp\_corr\_single} & min-var       & $-0.227$ & $[-0.59,\,0.00]$ & 0.052 \\
+    \texttt{hrp\_corr\_ward}   & min-var       & $-0.208$ & $[-0.60,\,0.02]$ & 0.086 \\
+    \texttt{herc\_corr}        & min-var       & $-0.202$ & $[-0.47,\,0.23]$ & 0.520 \\
+    \texttt{nco\_corr}         & min-var       & $+0.022$ & $[-0.15,\,0.21]$ & 0.640 \\
+    \texttt{nco\_corr}         & $1/N$         & $\mathbf{+0.203}$ & $[0.01,\,0.70]$ & \textbf{0.038} \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/10\_paired\_diffs\_vs\_minvar.csv}
+\end{table}
+
+\paragraph{Mehanizam.} Iako HRP/HERC ne dosežu punu koncentraciju min-vara,
+\emph{mehanizam} je prisutan u sva tri (tablica~\ref{tab:mech},
+slika~\ref{fig:weightbeta}): unutar prozora težina sustavno raste s padom
+rezidualne volatilnosti (korelacija $-0.44$ za \texttt{hrp\_corr\_ward}, $-0.14$
+za \texttt{nco\_corr}, naspram tek $-0.04$ za min-var) i s porastom
+CMA-izloženosti ($+0.33$ za \texttt{hrp\_corr\_ward}). Inverzno-varijančna jezgra
+upravo je kanal kroz koji se RMW/CMA nagib uvlači. \textbf{Zaključak H1:
+potvrđena za NCO, djelomično (mehanizam, ne puna magnituda) za HRP/HERC.}
+
+\begin{table}[!htbp]
+  \centering
+  \caption{Prosječna unutar-prozorska korelacija težine i karakteristike dionice
+  (13 prozora).}
+  \label{tab:mech}
   \small
   \begin{tabular}{lrrr}
     \toprule
-    Usporedba & $\Delta$ konc.\ stila & 95\,\% CI & $p$ \\
+    Portfelj & corr$(w,\sigma_\varepsilon)$ & corr$(w,\beta_{\text{CMA}})$ & corr$(w,\beta_{\text{RMW}})$ \\
     \midrule
-    faktorski neutralan $\varepsilon{=}0.00$ & $\mathbf{-0.308}$ & $[-0.47,\,-0.09]$ & \textbf{0.002} \\
-    faktorski neutralan $\varepsilon{=}0.05$ & $-0.225$ & $[-0.39,\,-0.06]$ & 0.004 \\
-    faktorski neutralan $\varepsilon{=}0.10$ & $-0.171$ & $[-0.32,\,-0.03]$ & 0.006 \\
-    faktorski neutralan $\varepsilon{=}0.15$ & $-0.054$ & $[-0.10,\,-0.01]$ & 0.020 \\
+    minimalna varijanca        & $-0.04$ & $+0.09$ & $+0.02$ \\
+    \texttt{nco\_corr}         & $-0.14$ & $+0.17$ & $+0.07$ \\
+    \texttt{herc\_corr}        & $-0.19$ & $+0.14$ & $+0.08$ \\
+    \texttt{hrp\_corr\_single} & $-0.33$ & $+0.31$ & $+0.15$ \\
+    \texttt{hrp\_corr\_ward}   & $\mathbf{-0.44}$ & $\mathbf{+0.33}$ & $+0.16$ \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/10\_weight\_characteristic\_corr.csv}
 \end{table}
 
 \begin{figure}[!htbp]
   \centering
-  \includegraphics[width=0.62\linewidth]{fig06-bootstrap-factor-neutral-e0.png}
-  \caption{Bootstrap-distribucija razlike koncentracije stila (faktorski neutralan
-  $\varepsilon{=}0$ $-$ \texttt{min\_var}). Interval leži u cijelosti ispod nule.}
-  \label{fig:bootstrap}
+  \includegraphics[width=0.80\linewidth]{fig04-weight-vs-beta.png}
+  \caption{Korelacija težine s rezidualnom volatilnošću i faktorskim betama po
+  alokatoru: inverzno-varijančni mehanizam vidljiv je kao negativna veza s
+  $\sigma_\varepsilon$ i pozitivna s $\beta_{\text{CMA}}$.}
+  \label{fig:weightbeta}
 \end{figure}
 
-Granica koncentracije stila naspram ostvarene volatilnosti (slika~\ref{fig:frontier})
-smješta čistu faktorski neutralnu obitelj na efikasnu granicu: ona smanjuje izloženost bez
-porasta volatilnosti, dok hibridni portfelji to plaćaju višom volatilnošću.
+Nagib je postojan kroz testne godine (slika~\ref{fig:concyear}): NCO i min-var
+ostaju na vrhu, HRP/HERC u sredini, $1/N$ i faktorski neutralan pri dnu, kroz sve
+režime (uzlet kvalitete, šok pandemije, kamatni ciklus 2022.--2023.).
 
 \begin{figure}[!htbp]
   \centering
-  \includegraphics[width=0.72\linewidth]{fig07-style-volatility-frontier.png}
-  \caption{Koncentracija stila naspram ostvarene godišnje volatilnosti za sve familije
-  portfelja. Faktorski neutralna familija zauzima efikasnu granicu.}
+  \includegraphics[width=0.84\linewidth]{fig03-style-concentration-by-year.png}
+  \caption{Koncentracija stila po testnoj godini. Poredak je postojan kroz
+  režime.}
+  \label{fig:concyear}
+\end{figure}
+\FloatBarrier
+
+\section{Faza 3: Prostor hijerarhije --- neutralizira li faktorski prostor nagib? (H2)}
+
+Mijenjamo \emph{samo} ulaz u hijerarhiju (korelacijsko $\rightarrow$ faktorsko
+stablo), uz konstantnu Wardovu vezu, $\Sigma$, univerzum i $w_{\max}$. Parne
+razlike faktorski $-$ korelacijski po alokatoru (tablica~\ref{tab:h2}) pokazuju da
+\textbf{faktorski prostor ne neutralizira nagib}: interval razlike koncentracije
+stila obuhvaća nulu za sva tri alokatora ($p\ge 0.43$). Volatilnost se ne
+pogoršava značajno ni za jedan alokator.
+
+\begin{table}[!htbp]
+  \centering
+  \caption{Parne razlike (faktorski $-$ korelacijski prostor) po alokatoru;
+  HRP baza $=$ \texttt{hrp\_corr\_ward} (K1).}
+  \label{tab:h2}
+  \small
+  \begin{tabular}{llrrc}
+    \toprule
+    Alokator & metrika & $\Delta$ & 95\,\% CI & $p$ \\
+    \midrule
+    HRP  & konc.\ stila & $+0.012$ & $[-0.02,\,0.05]$ & 0.426 \\
+    HERC & konc.\ stila & $+0.088$ & $[-0.54,\,0.24]$ & 0.914 \\
+    NCO  & konc.\ stila & $-0.061$ & $[-0.15,\,0.11]$ & 0.528 \\
+    HRP  & god.\ vol.   & $+0.0003$ & $[-0.001,\,0.001]$ & 0.542 \\
+    HERC & god.\ vol.   & $+0.009$ & $[-0.004,\,0.022]$ & 0.172 \\
+    NCO  & god.\ vol.   & $+0.001$ & $[-0.004,\,0.006]$ & 0.648 \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/11\_paired\_diffs\_space.csv}
+\end{table}
+
+\paragraph{Obećani dobitci se ne materijaliziraju pri $K=10$.} H2 je predviđala
+mjerljive dobitke u stabilnosti i obrtaju. Mjereni ARI između uzastopnih prozora
+\emph{lošiji} je za faktorski prostor ($0.25$) nego za korelacijski ($0.29$);
+obrtaj je usporediv (HRP $0.25$ vs $0.25$, HERC $0.60$ vs $0.59$, NCO $0.56$ vs
+$0.60$). Bootstrap stabilnost pripadnosti tek je marginalno viša za faktorske
+klastere (Jaccard $0.488$ vs $0.485$). Jedina \emph{konkretna} prednost faktorskog
+prostora jest \textbf{parsimonija}: hijerarhija na $6N$ beta umjesto na $N(N-1)/2$
+korelacija --- pri $N\approx 411$ to je redukcija od $\sim 34\times$ u broju
+parametara. Koncentracija stila robusna je kroz $K$ (NCO $0.74$--$0.88$, HERC
+$0.56$--$0.66$ kroz $K\in\{2,10,20\}$ i k-means; tablica~\ref{tab:h2supp}), pa
+nagib opstaje i pri vlastito-optimalnom $K$. \textbf{Zaključak H2: „ne
+neutralizira'' potvrđeno; „mjerljivi dobitci'' ne ostvaruju se pri $K=10$ ---
+jedina prednost je dimenzijska parsimonija.}
+
+\begin{table}[!htbp]
+  \centering
+  \caption{H2 popratne mjere: stabilnost, obrtaj i robusnost koncentracije stila
+  kroz $K$.}
+  \label{tab:h2supp}
+  \small
+  \begin{tabular}{lrr}
+    \toprule
+    Mjera & korelacijski & faktorski \\
+    \midrule
+    srednji ARI (uzastopni prozori)        & 0.29 & 0.25 \\
+    Jaccard stabilnost (bootstrap)         & 0.485 & 0.488 \\
+    obrtaj HRP / HERC / NCO                & 0.25 / 0.60 / 0.56 & 0.25 / 0.59 / 0.60 \\
+    konc.\ stila NCO ($K\in\{2,10,20\}$)   & \multicolumn{2}{c}{0.74--0.88 (robusno)} \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/11\_ari\_stability.csv, 11\_turnover\_by\_space.csv, 11\_k\_robustness.csv, 02\_cluster\_stability.csv}
+\end{table}
+\FloatBarrier
+
+\section{Faza 4: Mehanizam i lijek --- overlay ograničenje beta (H3)}
+
+Budući da ni prostor hijerarhije ne uklanja nagib, primjenjujemo izravno
+ograničenje $|w^{\!\top}\beta_f|\le\varepsilon$ kao QP overlay na hijerarhijske
+težine. Svih 24 varijanti izvedivo je u svih 13 prozora. Parne razlike
+overlay($\varepsilon{=}0$) $-$ baza (tablica~\ref{tab:h3}) pokazuju da overlay
+\textbf{značajno smanjuje koncentraciju stila u 5 od 6 alokator$\times$prostor
+kombinacija} (jedino \texttt{herc\_corr} graničan, $p=0.066$), uz zanemariv ili
+neznačajan trošak u volatilnosti.
+
+\begin{table}[!htbp]
+  \centering
+  \caption{Parne razlike overlay ($\varepsilon{=}0$) $-$ hijerarhijska baza;
+  koncentracija stila i godišnja volatilnost (1000 bootstrap uzoraka).}
+  \label{tab:h3}
+  \footnotesize
+  \setlength{\tabcolsep}{4.5pt}
+  \begin{tabular}{llrrc rc}
+    \toprule
+    Alokator & prostor & \multicolumn{3}{c}{$\Delta$ konc.\ stila} & \multicolumn{2}{c}{$\Delta$ god.\ vol.} \\
+    \cmidrule(lr){3-5}\cmidrule(lr){6-7}
+     & & $\Delta$ & 95\,\% CI & $p$ & $\Delta$ & $p$ \\
+    \midrule
+    HRP  & korel. & $-0.118$ & $[-0.20,\,-0.07]$ & \textbf{0.012} & $+0.003$ & 0.016 \\
+    HERC & korel. & $-0.187$ & $[-0.40,\,0.02]$  & 0.066 & $+0.002$ & 0.526 \\
+    NCO  & korel. & $\mathbf{-0.330}$ & $[-0.50,\,-0.14]$ & \textbf{0.002} & $+0.005$ & 0.072 \\
+    HRP  & fakt.  & $-0.115$ & $[-0.21,\,-0.06]$ & \textbf{0.008} & $+0.003$ & 0.016 \\
+    HERC & fakt.  & $-0.116$ & $[-0.20,\,-0.03]$ & \textbf{0.006} & $-0.001$ & 0.280 \\
+    NCO  & fakt.  & $-0.221$ & $[-0.46,\,-0.07]$ & \textbf{0.000} & $+0.006$ & 0.040 \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/12\_h3\_paired\_diffs.csv}
+\end{table}
+
+\paragraph{2$\times$2 faktorijal.} Konsolidirana tablica
+(tablica~\ref{tab:factorial}) prosjeka HRP/HERC/NCO razdvaja dva izvora variranja.
+\emph{Prostor} jedva pomiče koncentraciju stila (korelacijski $0.647$ naspram
+faktorski $0.660$ u baznom retku), dok \emph{overlay} ($\varepsilon{=}0$) snižava
+srednju koncentraciju u oba prostora (korelacijski $0.647\rightarrow 0.435$;
+faktorski $0.660\rightarrow 0.509$) uz zanemarivu promjenu volatilnosti. Glavni
+efekt pripada mehanizmu ograničenja, ne prostoru hijerarhije.
+
+\begin{table}[!htbp]
+  \centering
+  \caption{2$\times$2 faktorijal \{prostor\}$\times$\{overlay $\varepsilon{=}0$\};
+  srednje vrijednosti preko HRP/HERC/NCO.}
+  \label{tab:factorial}
+  \small
+  \begin{tabular}{llrr}
+    \toprule
+    Prostor & Overlay & sr.\ konc.\ stila & sr.\ god.\ vol. \\
+    \midrule
+    korelacijski & baza    & 0.647 & 13.4\,\% \\
+    korelacijski & overlay & \textbf{0.435} & 13.7\,\% \\
+    faktorski    & baza    & 0.660 & 13.8\,\% \\
+    faktorski    & overlay & \textbf{0.509} & 14.0\,\% \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/13\_factorial\_2x2.csv}
+\end{table}
+
+\paragraph{Granica stil--volatilnost.} Na granici koncentracija stila naspram
+ostvarene volatilnosti (slika~\ref{fig:frontier}) overlay točke dominiraju
+nisko-stilski dio fronte: nijedna bazna hijerarhijska varijanta nije
+Pareto-optimalna ondje gdje overlay smanjuje stil bez porasta volatilnosti.
+Nalaz je robustan na normu projekcije ($\Sigma$ naspram euklidske: $\Delta$
+koncentracije stila $-0.011$ do $-0.027$). \textbf{Zaključak H3: podržana.}
+
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=0.78\linewidth]{fig05-style-volatility-frontier.png}
+  \caption{Koncentracija stila naspram ostvarene godišnje volatilnosti za svih 37
+  varijanti završne usporedbe; Paretova fronta istaknuta. Overlay varijante
+  zauzimaju nisko-stilski dio fronte.}
   \label{fig:frontier}
 \end{figure}
 \FloatBarrier
 
-\section{Metodološka proširenja i provjere}
-
-Dva dodatna pokusa provjeravaju robusnost odabranog klasteriranja i ispituju može li se
-ista faktorska reprezentacija koristiti i prediktivno.
-
-\paragraph{Algoritmi klasteriranja i odabir $K$.} Prostor faktora
-ponovno smo klasterirali particijskim metodama (K-means, k-medoid), vjerojatnosnom
-metodom (mješavina Gaussovih distribucija, EM) te metodom utemeljenom na gustoći (DBSCAN),
-uz odabir $K$ pomoću siluete, Calinski--Harabaszova i Davies--Bouldinova indeksa te Gap
-statistike (slika~\ref{fig:kselect}). Zaključci: (i) struktura je otporna na izbor
-algoritma -- K-means daje u osnovi iste skupine kao Wardova metoda (ARI $\approx 0.45$);
-(ii) sva četiri indeksa interne validacije upućuju na \emph{statistički} prirodan $K$
-između 3 i 5, pa je $K=7$ ponajprije uvjet uloživosti, a ne optimum siluete, što dijelom
-objašnjava zašto je ispravak ograničenjem po klasteru imao tako malo strukture za
-iskoristiti; (iii) DBSCAN ne pronalazi prirodne praznine u gustoći (ARI $\approx 0$), čime
-se potvrđuje da su metode sa zadanim $K$ ovdje pravi alat.
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=0.95\linewidth]{fig08-k-selection-indices.png}
-  \caption{Indeksi za odabir broja klastera i Gap statistika za Wardovu metodu i K-means.
-  Prirodan $K$ nalazi se u rasponu 3--5.}
-  \label{fig:kselect}
-\end{figure}
-\FloatBarrier
-
-\paragraph{Nadzirano proširenje (predviđanje pada).} Za svaku dionicu i
-testno razdoblje označavamo „visok pad” (gori od medijana u presjeku te godine) te ga
-predviđamo iz značajki prozora procjene, stablima odlučivanja (entropija / Gini, dubina
-3) i ansamblima (slučajna šuma, gradijentni boosting) -- uz unakrsnu validaciju grupiranu
-po testnoj godini (GroupKFold).
+\paragraph{Što statistika rizika \emph{ne} tvrdi.} Model Confidence Set na
+ostvarenoj varijanci (gubitak $l_t=(r_t-\bar r)^2$, $\alpha=0.10$) zadržava
+$26/37$ varijanti --- cijelu nisko-volatilnu skupinu (sve NCO, faktorski
+neutralne, min-var, HRP s overlayem), dok HERC i $1/N$ ispadaju ($p=0.032$); svih
+156 mjeseci raspoloživo je svim varijantama pa nijedna nije isključena pravilom
+presjeka. MCS mjeri ostvarenu varijancu, ne stil. Deflated Sharpe Ratio (za 37
+isprobanih varijanti) kreće se $0.55$--$0.73$ i \textbf{nijedna varijanta ne
+prelazi prag $0.95$}: riziku prilagođena prednost nije razlučiva od sreće nakon
+korekcije za višestruko isprobavanje (tablica~\ref{tab:mcsdsr}). Studija tvrdi
+nešto o \emph{stilu}, ne o nadmašivanju u prinosu.
 
 \begin{table}[!htbp]
   \centering
-  \caption{Unakrsna validacija predviđanja pada (najbolji model po skupu značajki).}
-  \label{tab:cv}
+  \caption{Statistika rizika: MCS članstvo (bruto) i raspon DSR-a.}
+  \label{tab:mcsdsr}
   \small
-  \begin{tabular}{lrr}
+  \begin{tabular}{lr}
     \toprule
-    Skup značajki & najbolji ROC-AUC & najbolja točnost \\
+    Mjera & vrijednost \\
     \midrule
-    samo faktorske bete       & 0.69 & 0.64 \\
-    + GICS sektor             & 0.69 & 0.63 \\
-    + oznaka faktorskog klastera & 0.68 & 0.64 \\
+    varijanti u MCS-u @ $\alpha{=}0.10$ (od 37)   & 26 \\
+    isključeni pravilom presjeka ($>20\,\%$ manjka) & 0 \\
+    najjače izbačeni (\texttt{equal\_weight}, \texttt{herc\_factor}) & $p=0.032$ \\
+    raspon DSR (bruto)                            & 0.55--0.73 \\
+    varijanti s DSR $\ge 0.95$                     & 0 \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/12\_mcs\_final.csv, 12\_dsr.csv}
 \end{table}
+\FloatBarrier
 
-Pad je umjereno predvidljiv (AUC $\approx 0.69$ naspram 0.5), no signalom dominiraju
-rezidualna volatilnost (idiosinkratski rizik) i tržišna beta, a ne stilski faktori.
-Dodavanje GICS sektora ili oznake klastera ne donosi poboljšanje u odnosu na same bete:
-klaster je izvrstan \emph{opisni} objekt, ali ne i dodatna \emph{prediktivna} značajka.
+\section{Stari projekt kao referenca i motivacija}
+
+Prethodna faza (dijagnoza min-vara, neuspjeh grupnih ograničenja, izravna
+neutralnost) ugnježđuje se kao benchmark obitelj, ne baca se. Na novom
+point-in-time univerzumu replicira se njezin ključni nalaz: izravno linearno
+ograničenje na bete (\texttt{factor\_neutral}) smanjuje koncentraciju stila
+minimalne varijance s $0.78$ na $0.53$ ($-32\,\%$) uz neznačajan trošak u
+volatilnosti --- blok-bootstrap razlika $-0.251$, 95\,\% CI $[-0.44,\,-0.05]$,
+$p=0.024$ za stil naspram $p=0.066$ za volatilnost (tablica~\ref{tab:oldproj}).
+Time stari rezultat motivira overlay iz Faze 4: mehanizam koji je radio na
+min-varu radi i kad se primijeni na hijerarhijske težine. Grupno ograničeni
+benchmarki (po sektoru / korelacijskom / faktorskom klasteru) i hibridna obitelj
+uklonjeni su iz novih panela jer na point-in-time S\&P~500 univerzumu uvjet
+uloživosti $K\times\text{group\_cap}\ge 1$ ne dopušta silueta-optimalan $K$;
+ostaju u kodu kao legacy.
+
+\begin{table}[!htbp]
+  \centering
+  \caption{Stari projekt na novom univerzumu: izravna faktorska neutralnost
+  naspram minimalne varijance (blok-bootstrap razlike).}
+  \label{tab:oldproj}
+  \small
+  \begin{tabular}{lrrc}
+    \toprule
+    Usporedba ($\varepsilon{=}0$) & $\Delta$ & 95\,\% CI & $p$ \\
+    \midrule
+    konc.\ stila (\texttt{factor\_neutral} $-$ min-var) & $\mathbf{-0.251}$ & $[-0.44,\,-0.05]$ & \textbf{0.024} \\
+    god.\ vol. (\texttt{factor\_neutral} $-$ min-var)   & $+0.004$ & $[-0.0002,\,0.008]$ & 0.066 \\
+    \bottomrule
+  \end{tabular}\\[0.3em]
+  \izvor{outputs/tables/05\_bootstrap\_ci\_extended.csv, 05\_risk\_summary\_all.csv}
+\end{table}
+\FloatBarrier
 
 \section{Zaključak}
 
-\textbf{Istraživanje.} Portfelji minimalne varijance na indeksu Russell 1000 nose skrivenu izloženost prema faktorima profitabilnosti (RMW) i ulaganja (CMA) -- koncentraciju
-stila skrivenu sektorskoj i korelacijskoj diverzifikaciji, ali jasno ocrtanu klasteriranjem
-u prostoru faktora.
+\textbf{Gdje nastaje stilski rizik?} U \emph{mehanizmu}, ne u prostoru.
+Inverzno-varijančna jezgra koju dijele sva tri hijerarhijska alokatora uvlači
+RMW/CMA nagib (težina raste s padom rezidualne volatilnosti i porastom
+CMA-izloženosti). NCO ga nasljeđuje u punoj magnitudi (koncentracija stila
+$0.80\approx$ min-var), HRP i HERC u mehanizmu ali raspršeno (na razinu $1/N$).
 
-\textbf{Ispravak.} Dodavanje linearnih ograničenja $|w^{\!\top}\beta_f|\le\varepsilon$
-izravno u kvadratni program smanjuje ostvarenu koncentraciju stila za 31\,\% pri
-$\varepsilon=0$, bez vidljiva troška u volatilnosti ($p\approx 0.002$).
+\textbf{Prostor hijerarhije nije lijek.} Zamjena korelacijskog stabla faktorskim,
+uz konstantnu vezu, ne pomiče koncentraciju stila (razlika obuhvaća nulu za sva
+tri alokatora), a obećani dobitak u stabilnosti klastera ne ostvaruje se pri
+$K=10$. Faktorski prostor donosi samo dimenzijsku parsimoniju ($\sim 34\times$
+manje parametara).
 
-\textbf{Sažetak.} Struktura faktorskih klastera bila je ispravna dijagnostika -- učinila je
-skriveni nagib vidljivim, ali pogrešan mehanizam ispravka: ograničavanje grupne težine
-ne cilja nijednu pojedinačnu betu. Uspješan ispravak postavlja ograničenje točno ondje
-gdje je klasteriranje pokazalo problem: na faktorske bete.
+\textbf{Lijek je izravno ograničenje na bete.} Overlay
+$|w^{\!\top}\beta_f|\le\varepsilon$ na hijerarhijske težine značajno smanjuje
+koncentraciju stila (5/6 varijanti) uz zanemariv trošak u volatilnosti i dominira
+na granici stil--volatilnost; 2$\times$2 faktorijal pripisuje glavni efekt
+mehanizmu ograničenja, ne prostoru. Statistika rizika (MCS, DSR) potvrđuje da je
+tvrdnja o stilu, ne o nadmašivanju u prinosu.
 
-\paragraph{Glavna ograničenja.} (i) Pristranost preživljavanja -- skup dionica je trenutačni
-sastav indeksa Russell 1000, a ne indeks u stvarnoj povijesnoj točki. (ii) Bete su
-procijenjene iz 60 mjesečnih opažanja, dovoljno malo da unesu šum u procjenu. (iii)
-Transakcijski troškovi su izostavljeni. (iv) Korelacijsko-klasterski portfelj i
-hibridi pri $\varepsilon\in\{0,0.05\}$ agregirani su preko manjega broja testnih mjeseci
-(168/180 naspram 192) zbog neizvedivosti u najranijim prozorima.
+\paragraph{Glavna ograničenja.}
+\begin{itemize}
+  \item \textbf{Pokrivenost delistanih.} U point-in-time okviru pristranost je
+        \emph{nedostajuće članstvo}: jezgra od 321 delistanog imena bez Yahoo
+        povijesti izostavljena je presjekom, a udio članova s $\ge 60$ mj.\ raste
+        s $54.75\,\%$ na $95.63\,\%$ (tablica~\ref{tab:cov}) --- zato je backtest
+        podrezan na 2013.--2025.
+  \item \textbf{Šum beta.} Bete su procijenjene iz 60 mjesečnih opažanja,
+        dovoljno malo da unesu šum; one ulaze samo u izgradnju hijerarhije, nikad
+        u procjenu rizika.
+  \item \textbf{Jednostavan model troškova.} Trošak je linearan (10 bps) i samo
+        na refit obrtaj, uz fiksne težine unutar testne godine.
+  \item \textbf{Nametanje $w_{\max}$.} Ograničenje pojedinačne pozicije
+        provodi se iterativnim odsijecanjem na $w_{\max}=0.05$ s renormalizacijom.
+        Cap pritišće zamjetno samo kod NCO (prosječni udio težine na capu $0.07$
+        u korelacijskom, $0.13$ u faktorskom prostoru; ostali hijerarhijski
+        $\approx 0$, min-var $0.09$); kod NCO je dakle dijelom i ograničenje, a ne
+        samo alokator, koje oblikuje težine.
+  \item \textbf{Jedna klasa imovine.} Prinosi US large-cap dionica ostaju
+        $\sim 0.97$ korelirani neovisno o capu i $K$; snaga studije dolazi iz
+        dispergije koncentracije stila ($0.53$--$0.80$), ne iz dekorelacije
+        prinosa.
+\end{itemize}
+
+\paragraph{Robusnost i arhivirana proširenja.} Kao dodatak robusnosti, faktorski
+prostor ponovno je klasteriran particijskim, vjerojatnosnim i gustoćnim metodama
+uz indekse interne validacije (notebook 07): struktura je otporna na izbor
+algoritma, a interni indeksi potvrđuju da je $K$ u faktorskom prostoru slabo
+određen (silueta monotono pada), čime se opravdava domenski odabir $K=10$.
+Nadzirano proširenje (predviđanje pada stablima i ansamblima; notebook 08,
+arhivirano) dalo je negativan rezultat: oznaka klastera ne dodaje prediktivnu
+vrijednost povrh samih beta, pa klaster ostaje izvrstan opisni, ali ne i
+prediktivni objekt.
+
+\section{Literatura}
+
+\begin{enumerate}[label={[\arabic*]}]
+  \item Bailey, D. H., \& López de Prado, M. (2014). The Deflated Sharpe Ratio:
+        Correcting for Selection Bias, Backtest Overfitting, and Non-Normality.
+        \textit{Journal of Portfolio Management}, 40(5), 94--107.
+  \item Fama, E. F., \& French, K. R. (2015). A five-factor asset pricing model.
+        \textit{Journal of Financial Economics}, 116(1), 1--22.
+  \item Hansen, P. R., Lunde, A., \& Nason, J. M. (2011). The Model Confidence
+        Set. \textit{Econometrica}, 79(2), 453--497.
+  \item Ledoit, O., \& Wolf, M. (2004). A well-conditioned estimator for
+        large-dimensional covariance matrices. \textit{Journal of Multivariate
+        Analysis}, 88(2), 365--411.
+  \item López de Prado, M. (2016). Building Diversified Portfolios that Outperform
+        Out of Sample. \textit{Journal of Portfolio Management}, 42(4), 59--69.
+  \item López de Prado, M. (2019). \textit{Machine Learning for Asset Managers}.
+        Cambridge University Press (Nested Clustered Optimization).
+  \item Novy-Marx, R. (2014). Understanding Defensive Equity.
+        \textit{NBER Working Paper} No.\ 20591.
+  \item Raffinot, T. (2018). The Hierarchical Equal Risk Contribution Portfolio.
+        \textit{SSRN} 3237540.
+  \item Scherer, B. (2011). A note on the returns to minimum variance investing.
+        \textit{Journal of Empirical Finance}, 18(4), 652--660.
+\end{enumerate}
 
 \end{document}
