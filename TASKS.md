@@ -513,7 +513,7 @@ hijerarhije, benchmark paneli.
 
 ### Taskovi
 
-- [ ] **F2.1 — FF5 atribucija hijerarhijskih alokatora** (S)
+- [x] **F2.1 — FF5 atribucija hijerarhijskih alokatora** (S)
   - Opis: primijeniti `factor_attribution_full_sample` i
     `factor_attribution_per_window` (`src/evaluation.py:314, 265`) na spojeni
     panel (benchmarki + `hrp_corr_single`, `hrp_corr_ward`, `herc_corr`,
@@ -527,7 +527,8 @@ hijerarhije, benchmark paneli.
   - Prihvaćanje: tablice postoje; svaki redak ima α, 5 beta, R²,
     `style_concentration`, `n_months`; pokriveni svi alokatori iz Faze 1.
   - Ovisnosti: F1.5
-- [ ] **F2.2 — Bootstrap intervali i parne razlike (test H1)** (M)
+  - *Odstupanje:* spojeni panel = `05_port_returns_panel_extended.csv` (1/N, min_var, `factor_neutral_eε`) + `09_port_returns_panel_hierarchical.csv` (4 hijerarhijska) = svih 10 portfelja Faze 1, n=156 (2013.–2025.). Notebook generiran jednokratnim graditeljem koji je potom uklonjen (pretpostavka 4 / presedan F1.5).
+- [x] **F2.2 — Bootstrap intervali i parne razlike (test H1)** (M)
   - Opis: `block_bootstrap_metric` (`src/evaluation.py:550`) → 95 % CI
     koncentracije stila za svaki alokator; `block_bootstrap_diff`
     (`src/evaluation.py:465`, zajedničko uzorkovanje) → parne razlike svakog
@@ -544,7 +545,8 @@ hijerarhije, benchmark paneli.
     `(portfolio[, compared_to], metric, point, ci_low, ci_high, p_two_sided)`;
     1000 uzoraka, blok 12, sjeme iz configa.
   - Ovisnosti: F2.1
-- [ ] **F2.3 — Mehanička dijagnostika inverzno-varijančne alokacije** (M)
+  - *Odstupanje:* obje usporedbe (naspram `min_var` i naspram `equal_weight`) idu u jedinstveni `10_paired_diffs_vs_minvar.csv` razlikovane stupcem `compared_to` (16 redaka: 4 alokatora × 2 baze × {style_concentration, annualized_vol}). `10_bootstrap_ci.csv` (razinski CI iz `block_bootstrap_metric`) ima `p_two_sided` protiv `H0: razina=0` radi jedinstvene sheme — trivijalno ≈ 0 jer je koncentracija stila nenegativna. Rezultat: NCO nerazlučiv od min_var (Δstyle +0,02, p≈0,64) i značajno iznad 1/N (+0,20, p≈0,04); HRP/HERC na razini 1/N.
+- [x] **F2.3 — Mehanička dijagnostika inverzno-varijančne alokacije** (M)
   - Opis: poveznica s mehanizmom H1 (Scherer 2011, Novy-Marx 2014): po prozoru
     regresirati/korelirati težine alokatora na karakteristike dionica
     (β_RMW, β_CMA, residual_vol iz `factor_exposures.csv`); prikazati prosjek
@@ -556,7 +558,8 @@ hijerarhije, benchmark paneli.
   - Prihvaćanje: tablica (portfolio × karakteristika → prosječna korelacija
     težina) i figura postoje.
   - Ovisnosti: F2.1
-- [ ] **F2.4 — Glavna isporuka: tablica skrivenih stilskih izloženosti + figura** (S)
+  - *Odstupanje:* korelacija po prozoru (Pearson, težina ↔ karakteristika preko presjeka tickera), prosjek kroz 13 prozora; tablica dugog formata (`portfolio, characteristic, mean_corr, std_corr, n_windows`). `equal_weight` izostavljen (uniformne težine → korelacija nedefinirana). Figura = grupirani stupci prosječne korelacije. Potvrda mehanizma: korelacija s `residual_vol` −0,14 (NCO) do −0,44 (HRP-ward), s β_RMW +0,07…+0,16, s β_CMA +0,14…+0,33.
+- [x] **F2.4 — Glavna isporuka: tablica skrivenih stilskih izloženosti + figura** (S)
   - Opis: konsolidirana tablica (alokator × {β_RMW, β_CMA, konc. stila [CI],
     ann_vol}) — ekvivalent README tablice starog projekta, sada za hijerarhijske
     alokatore; figura koncentracije stila po godini (stil postojeće
@@ -568,6 +571,7 @@ hijerarhije, benchmark paneli.
     zaključak o H1 (podržana/odbačena, s brojevima) zapisan u markdown ćeliji
     notebooka.
   - Ovisnosti: F2.2
+  - *Odstupanje:* `10_hidden_style_exposures.csv` stupci `portfolio, beta_rmw, beta_cma, style_concentration, style_conc_ci_low, style_conc_ci_high, ann_vol` (6 alokatora, uklj. 1/N i min_var). Zaključak o H1 (ćelija 10.5): **potvrđena za NCO** (puno nasljeđivanje, nerazlučiv od min_var, iznad 1/N), **djelomično za HRP/HERC** (RMW komponenta naslijeđena i mehanizam potvrđen, no ukupna koncentracija na razini 1/N; `herc_corr` plaća +1,6 p.b. vol., p≈0,01).
 
 **Definicija završetka Faze 2:** notebook 10 izvršava se do kraja; postoje
 `10_attribution_full_sample.csv`, `10_bootstrap_ci.csv`,
