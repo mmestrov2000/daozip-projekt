@@ -817,7 +817,7 @@ samo konsolidacija, tekst i pakiranje).
 
 ### Taskovi
 
-- [ ] **F5.1 — Finalni sažetak i master tablica** (M)
+- [x] **F5.1 — Finalni sažetak i master tablica** (M)
   - Opis: novi notebook `notebooks/13_final_summary.ipynb` (uloga starog 06):
     učitava spremljene panele (bez preračunavanja), gradi master tablicu svih
     portfelja × svih metrika (β-ovi, konc. stila [CI], vol, Sharpe bruto/neto,
@@ -829,6 +829,7 @@ samo konsolidacija, tekst i pakiranje).
   - Prihvaćanje: oba CSV-a postoje; master tablica pokriva ≥ 20 portfelja;
     brojevi se podudaraju s izvornim tablicama faza 1–4 (provjera spot-uzorkom).
   - Ovisnosti: F4.6
+  - *Odstupanje:* master tablica = 37 portfelja završne usporedbe (≥ 20) × 28 stupaca; konsolidacija je čisto lijevo spajanje zamrznutih tablica po imenu portfelja — stil/vol iz `12_frontier_points`, Sharpe/DSR iz `12_dsr`, MCS bruto/neto iz `12_mcs_final`, FF5 bete (+α, R²) iz `10_attribution_full_sample` (postoje samo za 10 dijagnostičkih portfelja Faze 2 → ostali NaN, bez naknadne regresije), bootstrap CI stila iz `10_bootstrap_ci` (6). MDD, obrtaj i eff. N (= prosjek 1/Σw² kroz prozore) nisu persistirani pa su izračunati kao deskriptivne statistike iz **spremljenih** panela prinosa/težina (nije ponovni backtest; eff. N je obvezan stupac, a nema druge dostupne tablice) — podudarnost s `09_replication_summary` (10 preklopa) provjerena u ćeliji 13.5 (max |Δ| MDD 2,8e-16, obrtaj 2,8e-15). 2×2 koristi `hrp_corr_ward` kao korelacijsku HRP bazu (K1) i overlay ε=0 (najstrože, kao parne razlike F4.6); ćelija = prosjek stila/vol preko HRP/HERC/NCO. Rezultat: overlay smanjuje srednju koncentraciju stila u oba prostora (korelacijski 0,647→0,435; faktorski 0,660→0,509) uz zanemarivu promjenu vol — kvantificirana potpora H3. Notebook izvršen end-to-end (nbconvert); generiran jednokratnim graditeljem koji je potom uklonjen (pretpostavka 4 / presedan F1.5).
 - [ ] **F5.2 — Restrukturiranje izvještaja** (L)
   - Opis: prerada `reports/izvjestaj.tex`: uvod s pregledom literature (López de
     Prado 2016, 2019; Raffinot 2018; Scherer 2011; Novy-Marx 2014; Hansen et al.
