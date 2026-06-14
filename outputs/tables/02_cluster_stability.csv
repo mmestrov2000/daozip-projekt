@@ -1,0 +1,3 @@
+clustering,mean_jaccard,mean_within_cluster_comembership,n_bootstraps_used
+factor,0.48781636048509736,0.7827467058117262,500
+correlation,0.4848340809032033,0.6879561157187973,500

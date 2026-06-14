@@ -872,7 +872,7 @@ samo konsolidacija, tekst i pakiranje).
     predmemoriju) regenerira sve tablice i figure koje izvještaj citira.
   - Ovisnosti: F5.1
   - *Odstupanje:* `scripts/run_all.sh` (bash, ne Makefile): auto-odabir interpretera (aktivirani venv → `.venv/bin/python` → `python3`), `pytest` pa `nbconvert --execute --inplace --ExecutePreprocessor.timeout=-1` (dodan timeout=-1 zbog dugih ćelija 01/02) za notebookove 01,02,03,05,07,09,10,11,12,13; 04 (stara evaluacija) i 06 (stari sažetak) dokumentirani kao izvan glavnog tijeka (zamijenili ih 10/12/13), 08 arhiviran → ne izvršavaju se. Skripta NIJE pokrenuta end-to-end jer Faza 5 zabranjuje preračunavanje („nikakvo preračunavanje u ovoj fazi”); verificirana po dijelovima: korijen-cd + odabir interpretera + `bash -n` čist, korak pytest zelen (75 prošlo / 4 preskočeno), točan oblik nbconvert naredbe izvršen na throwaway notebooku (exit 0, execution_count 1) — svaki glavni notebook ionako već izvršen/verificiran u svojoj fazi (PROGRESS).
-- [ ] **F5.5 — Završno čišćenje i commit politika izlaza** (S)
+- [x] **F5.5 — Završno čišćenje i commit politika izlaza** (S)
   - Opis: committati finalne tablice/figure koje izvještaj citira (riješeno
     pitanje 4), ažurirati `.gitignore` za međupanele; ukloniti zastarjele
     artefakte (stari `russell1000_tickers.csv` ostaje u `data/raw/` kao
@@ -881,6 +881,7 @@ samo konsolidacija, tekst i pakiranje).
   - Prihvaćanje: `git status` čist nakon commita; repo se klonira i README
     upute prolaze.
   - Ovisnosti: F5.2, F5.3, F5.4
+  - *Odstupanje:* commit politika izvedena kao whitelist u `.gitignore` (uzor: postojeći `data/raw/*` blok) — `outputs/tables/*` i `outputs/figures/*` ignorirani, pa odignorirano 20 tablica koje izvještaj citira (`\izvor` u `izvjestaj.tex`) + `13_master_table.csv` (cita ga README, traži ga Definicija Faze 5; izvještaj ga ne citira izravno) i 5 figura koje README povezuje = 25 committanih datoteka; svi međupaneli (return/weight/status) i dijagnostički nusproizvodi (07_*, preview figure, `09_*_notes.md`) ostaju ignorirani → regeneriraju se kroz `run_all.sh`. Uklonjeno 8 zastarjelih figura starog dizajna iz `reports/figures/` (čišćenje koje je F5.2 odgodila na F5.5) → ostaju točno `fig01`–`fig05` koje izvještaj citira i koje README stablo deklarira; `reports/figures/` izvan popisa Datoteke taska. `russell1000_tickers.csv` zadržan; napomena o povijesnoj snimci već u README-u (F5.3) pa README nije diran. „Repo se klonira” provjereno lokalnim `git clone .` — svi README putovi razriješeni, `bash -n scripts/run_all.sh` čist; `git status` čist nakon commita.
 
 **Definicija završetka Faze 5:** izvještaj (PDF) kompiliran s novim dizajnom i
 hipotezama unaprijed; README nov i točan; `scripts/run_all.sh` regenerira sve;
