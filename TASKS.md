@@ -694,7 +694,7 @@ definicije metrika.
 
 ### Taskovi
 
-- [ ] **F4.1 — Projekcijski QP u `src/portfolio.py`** (L)
+- [x] **F4.1 — Projekcijski QP u `src/portfolio.py`** (L)
   - Opis: nova funkcija `project_factor_neutral(w0, Sigma, factor_betas, w_max,
     epsilon, norm="sigma")`: riješiti
     `min_w (w−w0)' Σ (w−w0)` uz `1'w = 1`, `0 ≤ w ≤ w_max`,
@@ -710,7 +710,8 @@ definicije metrika.
     (3) Σ-norma i euklidska norma daju različita rješenja na konstruiranom
     primjeru s korelacijama.
   - Ovisnosti: F0.1, F0.2
-- [ ] **F4.2 — Overlay walk-forward s ε-preletom (2×2 faktorijal)** (L)
+  - *Odstupanje:* `w_max`/`epsilon` dobili defaulte (`W_MAX`/`0.0`) radi konvencije modula; dodan privatni `_align_initial_weights` (paralela `_align_factor_betas`) za poravnanje `w0` s poretkom Σ; lanac rješavača inline (ne preko `_solve_min_variance`, koji nosi vlastiti min-var cilj) da postojeća funkcija ostane netaknuta; `_weights_result` post-korak (clip+renormalizacija) zadržan kao u ostatku modula. Sva 3 obvezna kriterija pokrivena za obje norme (test i za ε=0.05, ndarray ulaz, validaciju `norm`/`epsilon`). `.venv/bin/python -m pytest` zelen (64 passed, 4 skipped = F1.4 biblioteke).
+- [x] **F4.2 — Overlay walk-forward s ε-preletom (2×2 faktorijal)** (L)
   - Opis: nova funkcija `run_overlay_sweep(...)` u `src/backtest.py` po uzoru na
     `run_factor_neutral_sweep` (`src/backtest.py:423`): učitati spremljene
     panele težina iz Faza 1 i 3 (`09_weights_panel_hierarchical.csv`,
@@ -729,7 +730,8 @@ definicije metrika.
   - Prihvaćanje: paneli postoje za 3 alokatora × 2 prostora × 4 ε = 24 overlay
     varijante (uz dokumentirane neizvedivosti); Σ-norma primarna.
   - Ovisnosti: F4.1, F1.5, F3.2
-- [ ] **F4.3 — Euklidska norma kao robusnost** (S)
+  - *Odstupanje:* `run_overlay_sweep` ne prima zasebne panele nego jedan `base_weights_panel` (spoj 09+11) + `base_portfolios` mapu `(ime, alokator, prostor)` (HRP baza = `hrp_corr_ward`); Σ se rekonstruira po prozoru Ledoit–Wolfom na univerzumu baze (kešira se po skupu tickera jer corr i factor dijele univerzum). Status tablica dobila `allocator/space/epsilon/norm`. Na čistim panelima svih 24 varijanti izvedivo u svih 13 prozora (0 neizvedivih: w_max 0.05 × ~stotine imovina daje zazor i za ε=0), 156 mj. po varijanti. Smoke test `run_overlay_sweep` dodan u `tests/test_overlay.py` (izvan popisa datoteka, presedan F1.5). `.venv/bin/python -m pytest` 67 passed / 4 skipped; notebook generiran jednokratnim graditeljem koji je uklonjen (pretpostavka 4).
+- [x] **F4.3 — Euklidska norma kao robusnost** (S)
   - Opis: ponoviti F4.2 s `norm="euclidean"` za reprezentativni podskup
     (npr. najbolji alokator × oba prostora × ε ∈ {0, 0.10}); usporediti metrike
     sa Σ-normom.
@@ -737,7 +739,8 @@ definicije metrika.
     `outputs/tables/12_norm_robustness.csv`.
   - Prihvaćanje: CSV s usporedbom Σ naspram euklidske norme po metrikama.
   - Ovisnosti: F4.2
-- [ ] **F4.4 — Deflated Sharpe Ratio (Bailey–López de Prado 2014)** (M)
+  - *Odstupanje:* „najbolji alokator” odabran programatski = argmax prosječnog bruto Sharpea baznih varijanti kroz oba prostora → **HRP** (0.827 vs NCO 0.785, HERC 0.715); podskup = HRP × {corr, factor} × ε ∈ {0, 0.10}. `12_norm_robustness.csv` (8 redaka: 2 prostora × 2 ε × 2 norme) sa stupcima `ann_vol, sharpe_gross, sharpe_net, max_drawdown, style_concentration, n_months`. Σ-norma dosljedno daje nešto nižu koncentraciju stila i volatilnost od euklidske (Δstyle −0.011..−0.027) → zaključak robustan na izbor norme.
+- [x] **F4.4 — Deflated Sharpe Ratio (Bailey–López de Prado 2014)** (M)
   - Opis: nova funkcija `deflated_sharpe_ratio(returns, n_trials, rf)` u
     `src/evaluation.py`: procjena SR, korekcija za skewness/kurtosis i za
     očekivani maksimum preko `n_trials` isprobanih varijanti; vraća DSR
@@ -759,7 +762,8 @@ definicije metrika.
     `n_trials` ≥ 34 čija vrijednost odgovara stvarnom broju varijanti u master
     panelu.
   - Ovisnosti: F4.2
-- [ ] **F4.5 — Proširena granica stil–volatilnost (nova Slika 7)** (M)
+  - *Odstupanje:* potpis ostavljen točno `deflated_sharpe_ratio(returns, n_trials, rf=0.0)`; izdvojeni privatni `_deflated_sharpe_from_moments(sr, γ3, γ4, T, N)` / `_expected_max_sharpe` / `_sr_standard_error` (testabilna jezgra koja izravno odgovara „SR, γ3, γ4, T, N → DSR” iz kriterija). DSR = PSR(SR₀) (Bailey–LdP 2012/2014) na po-periodnom višku prinosa; raspršenje SR-a kroz pokušaje aproksimira se standardnom pogreškom SR-a samog niza (Lo 2002) — jedini izvor varijance dostupan uz zadani potpis (samo jedan niz). `n_trials = 37` = broj stupaca **persistiranog** master panela (05+09+11+12 bruto prinosi = 2+4+7+24, točno prve četiri skupine formule); euklidska robusnost (~4, F4.3) acknowledgirana u metadata ćeliji notebooka, ali izvan primarnog Σ-norma panela jer obvezujući kriterij veže `n_trials` na „broj varijanti u master panelu” (37 ∈ navedeni raspon 37–41, ≥ 34). `12_dsr.csv` stupci: `portfolio, n_months, sharpe_gross, sharpe_net, dsr_gross, dsr_net, n_trials` (37 redaka); Sharpe anualiziran (rf=RF), neto = trošak na refit obrtaj (tc_bps=10), poklapa se sa zamrznutom `09_replication_summary` do ~1e-15. Notebook 12 dobio sekciju 12.3 (heading + metadata ćelija s popisom varijanti + build + provjere); CSV generiran jednokratnim helperom koji čita persistirane panele (ne dira zamrznute F4.2/F4.3 izlaze; presedan F1.7/F2.1), notebook se ne izvršava end-to-end do dovršetka faze (F4.6). Nijedan DSR ne doseže 0.95 (raspon 0.55–0.73, HRP najviše, HERC najniže) — pošten nalaz za 13-godišnji uzorak uz 37 pokušaja. `.venv/bin/python -m pytest` 75 passed / 4 skipped (F1.4 biblioteke).
+- [x] **F4.5 — Proširena granica stil–volatilnost (nova Slika 7)** (M)
   - Opis: nova verzija postojeće granice
     (`reports/figures/fig07-style-volatility-frontier.png`, generirana logikom
     `05_frontier_style_vs_vol.png` iz notebooka 05): x = ostvarena godišnja
@@ -772,7 +776,8 @@ definicije metrika.
   - Prihvaćanje: figura i tablica točaka postoje; svaka točka ima
     `portfolio, ann_vol, style_concentration, n_months`.
   - Ovisnosti: F4.2
-- [ ] **F4.6 — MCS preko svih alokatora + test H3** (M)
+  - *Odstupanje:* točke = master panel F4.4 (37 varijanti: 05+09+11+12 bruto), pa `12_frontier_points.csv` ima 37 redaka + dodatni bool stupac `pareto`; `hrp_corr_single` (bez overlaya, K1) ucrtan kao zasebna polu-prozirna točka. ε-putanje: factor_neutral obitelj + 6 overlay nizova (alokator×prostor) spojeni linijama; Paretova fronta (istovremena minimizacija vol i stila) = 8 točaka, istaknuta crvenom isprekidanom linijom + prstenovima. Overlay ε=0 zauzimaju nisko-stilski dio fronte (`herc_corr_ov_e0` stil 0.39 najniži). F4.5/F4.6 ćelije dodane u notebook 12 (sekcije 12.4/12.5) koji se sada izvršava end-to-end (nbconvert), čime se zatvara F4.4 napomena o ne-izvršavanju.
+- [x] **F4.6 — MCS preko svih alokatora + test H3** (M)
   - Opis: `model_confidence_set` (F1.7) preko cijelog završnog skupa (bruto i
     neto), uz **pravilo presjeka iz K3**: računa se na presjeku mjeseci
     dostupnih svim uspoređenim varijantama; broj ispuštenih mjeseci izvještava
@@ -792,6 +797,7 @@ definicije metrika.
     praga 20 %; zaključak H3 (po sva tri kriterija) eksplicitan u markdown
     ćeliji.
   - Ovisnosti: F4.2, F4.4, F4.5, F1.7
+  - *Odstupanje:* MCS računan i na bruto i na neto prinosima (`returns_type` stupac, 74 retka = 37×2); pravilo K3 primijenjeno, no nijedna varijanta nije iznad praga 20 % (sve 156 mj.) pa je `status` svuda `included`, `n_months_dropped`=0 — sposobnost označavanja `excluded` prisutna, ali se ne aktivira (pošten ishod na izvedivim panelima F4.2). MCS@0.10 zadržava 26/37 (nisko-volatilne: cijela NCO obitelj, factor_neutral, min_var, HRP+overlay); `equal_weight`/`herc_factor` najodlučnije izbačeni (p=0.032) — MCS mjeri ostvarenu varijancu, ne stil. Parne razlike = overlay(ε=0)−baza po 6 (alokator×prostor), stil i vol → 12 redaka. **H3 zaključak (ćelija 12.5, kvantificiran): PODRŽANA** — (1) svih 6 točkastih Δstil < 0, značajno 3/3 faktorski + 2/3 korelacijski (`herc_corr` graničan p=0.07); (2) trošak vol zanemariv (Δ obuhvaća 0 u 3/6, inače +0.3–0.6 p.b.); (3) overlay točke dominiraju nisko-stilski dio Paretove fronte (nijedna bazna hijerarhijska varijanta nije Pareto-optimalna ondje). Notebook 12 izvršen end-to-end (nbconvert, ~80 s).
 
 **Definicija završetka Faze 4:** notebook 12 izvršava se do kraja; postoje
 `12_port_returns_panel_overlay.csv`, `12_overlay_status.csv`, `12_dsr.csv`,

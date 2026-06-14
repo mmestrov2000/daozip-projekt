@@ -28,6 +28,7 @@ from src.portfolio import (
     min_var_group_and_factor_neutral,
     min_var_group_constrained,
     min_variance,
+    project_factor_neutral,
     sample_cov,
 )
 from src.utils import (
@@ -473,11 +474,13 @@ __all__ = [
     "PORTFOLIO_NAMES",
     "HIERARCHICAL_PORTFOLIO_NAMES",
     "HIERARCHICAL_FACTOR_PORTFOLIO_NAMES",
+    "OVERLAY_BASE_PORTFOLIOS",
     "RollingWindow",
     "generate_rolling_windows",
     "run_walk_forward",
     "run_hierarchical_walk_forward",
     "run_factor_neutral_sweep",
+    "run_overlay_sweep",
 ]
 
 
@@ -970,6 +973,216 @@ def run_hierarchical_walk_forward(
             if name in returns_pieces:
                 columns[name] = pd.concat(returns_pieces[name]).sort_index()
         port_returns_panel = pd.DataFrame(columns).sort_index()
+        port_returns_panel.index.name = "date"
+        port_returns_panel.columns.name = "portfolio"
+    else:
+        port_returns_panel = pd.DataFrame()
+
+    return {
+        "weights_panel": weights_panel,
+        "port_returns_panel": port_returns_panel,
+        "portfolio_status": portfolio_status,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Projekcijski QP overlay s ε-preletom (F4.2 / F4.3)
+# ---------------------------------------------------------------------------
+
+
+# (ime spremljenog baznog portfelja, oznaka alokatora, oznaka prostora).
+# Korelacijska baza za HRP je `hrp_corr_ward` (krak kontrolirane usporedbe, K1);
+# `hrp_corr_single` (jednostruka veza, vjerna replikacija) NE dobiva overlay.
+OVERLAY_BASE_PORTFOLIOS = (
+    ("hrp_corr_ward", "hrp", "corr"),
+    ("herc_corr", "herc", "corr"),
+    ("nco_corr", "nco", "corr"),
+    ("hrp_factor", "hrp", "factor"),
+    ("herc_factor", "herc", "factor"),
+    ("nco_factor", "nco", "factor"),
+)
+
+
+def run_overlay_sweep(
+    base_weights_panel: pd.DataFrame,
+    monthly_returns: pd.DataFrame,
+    factor_exposures: pd.DataFrame,
+    windows: Iterable[RollingWindow],
+    epsilons: Sequence[float] = (0.0, 0.05, 0.10, 0.15),
+    norm: str = "sigma",
+    base_portfolios: Sequence[tuple[str, str, str]] = OVERLAY_BASE_PORTFOLIOS,
+    style_factor_columns: Sequence[str] = STYLE_FACTOR_COLUMNS,
+    cov_estimator: str | Callable[[pd.DataFrame], pd.DataFrame] = "ledoit_wolf",
+    w_max: float = W_MAX,
+    min_training_months: int = MIN_TRAINING_MONTHS,
+) -> dict[str, pd.DataFrame]:
+    """Projekcijski QP overlay na zamrznute hijerarhijske težine (F4.2 / F4.3).
+
+    Po uzoru na :func:`run_factor_neutral_sweep`, ali **ne** rješava alokatore
+    iznova: učitava spremljene panele težina iz Faze 1 i 3 (npr.
+    ``09_weights_panel_hierarchical.csv`` + ``11_weights_panel_factor.csv``
+    spojeni u ``base_weights_panel``) i za svaki (bazni portfelj × prozor)
+    primjenjuje :func:`src.portfolio.project_factor_neutral` s ε iz ``epsilons``.
+
+    Σ se po prozoru ponovno procjenjuje istim Ledoit–Wolf procjeniteljem na
+    univerzumu baznog portfelja (= oznake dionica njegovih spremljenih težina),
+    pa je identična onoj iz izvornog runnera; bete su iz ``factor_exposures``
+    **istog prozora** (bez gledanja unaprijed). Testni prinosi računaju se istom
+    logikom kao postojeći runneri (fiksne težine × mjesečni prinosi testnog
+    prozora).
+
+    ``base_portfolios`` je niz ``(ime_baze, alokator, prostor)``; rezultatske
+    varijante imenuju se ``{alokator}_{prostor}_ov_e{ε}``. ``norm="sigma"``
+    (primarno) minimizira tracking error u Σ-metrici; ``norm="euclidean"``
+    (robusnost, F4.3) minimizira ``‖w − w0‖²``. Neizvedivi prozori (tipično
+    ε=0 u ranim prozorima) bilježe se u ``portfolio_status`` i ne prekidaju
+    pokretanje.
+
+    Vraća rječnik s ``weights_panel`` (dugi: prozor, portfelj, ticker, težina),
+    ``port_returns_panel`` (široki: mjesec × overlay portfelj) i
+    ``portfolio_status`` (dnevnik po prozoru/varijanti sa stupcima
+    ``allocator, space, epsilon, norm, n_assets, status``).
+    """
+    if norm not in {"sigma", "euclidean"}:
+        raise ValueError(f"norm mora biti 'sigma' ili 'euclidean', dobiveno {norm!r}.")
+
+    cov_fn = _resolve_cov_estimator(cov_estimator)
+    style_columns = list(style_factor_columns)
+
+    weights_rows: list[dict[str, object]] = []
+    returns_pieces: dict[str, list[pd.Series]] = {}
+    status_rows: list[dict[str, object]] = []
+
+    # Deterministički poredak overlay stupaca panela prinosa.
+    output_names = [
+        f"{allocator}_{space}_ov_e{eps:g}"
+        for _, allocator, space in base_portfolios
+        for eps in epsilons
+    ]
+
+    for window in windows:
+        window_weights = base_weights_panel.loc[
+            base_weights_panel["train_window"].astype(str) == window.label
+        ]
+        if window_weights.empty:
+            continue
+
+        window_betas = factor_exposures.loc[
+            factor_exposures["train_window"].astype(str) == window.label
+        ].set_index("ticker")
+        train_returns = monthly_returns.loc[window.train_start : window.train_end]
+        test_returns_full = monthly_returns.loc[window.test_start : window.test_end]
+
+        def _record_status(name, allocator, space, eps, n_assets, status):
+            status_rows.append(
+                {
+                    "train_window": window.label,
+                    "portfolio": name,
+                    "allocator": allocator,
+                    "space": space,
+                    "epsilon": float(eps),
+                    "norm": norm,
+                    "n_assets": int(n_assets),
+                    "status": status,
+                }
+            )
+
+        # Σ ovisi samo o univerzumu prozora; korelacijski i faktorski alokatori
+        # dijele isti univerzum, pa je računamo jednom po skupu oznaka dionica.
+        sigma_cache: dict[tuple[str, ...], pd.DataFrame] = {}
+
+        for base_name, allocator, space in base_portfolios:
+            w0 = (
+                window_weights.loc[window_weights["portfolio"] == base_name]
+                .set_index("ticker")["weight"]
+                .astype(float)
+            )
+            if w0.empty:
+                continue
+            universe = pd.Index(w0.index)
+            names = [f"{allocator}_{space}_ov_e{eps:g}" for eps in epsilons]
+
+            cache_key = tuple(universe)
+            sigma = sigma_cache.get(cache_key)
+            if sigma is None:
+                train_panel = train_returns.loc[:, universe].dropna(axis=0, how="any")
+                if len(train_panel) < min_training_months:
+                    for name, eps in zip(names, epsilons):
+                        _record_status(
+                            name, allocator, space, eps, len(universe),
+                            "failed: nedovoljno mjeseci treniranja",
+                        )
+                    continue
+                sigma = cov_fn(train_panel).loc[universe, universe]
+                sigma_cache[cache_key] = sigma
+
+            style_betas = window_betas.reindex(universe)[style_columns]
+            if style_betas.isna().any().any():
+                for name, eps in zip(names, epsilons):
+                    _record_status(
+                        name, allocator, space, eps, len(universe),
+                        "failed: nedostaju faktorske bete",
+                    )
+                continue
+
+            test_returns = test_returns_full.loc[:, universe]
+
+            for name, eps in zip(names, epsilons):
+                try:
+                    weights = project_factor_neutral(
+                        w0, sigma, style_betas, w_max=w_max, epsilon=eps, norm=norm
+                    )
+                    status = "ok"
+                except Exception as error:
+                    LOGGER.warning(
+                        "Overlay %s nije uspio u prozoru %s: %s",
+                        name,
+                        window.label,
+                        error,
+                    )
+                    weights, status = None, f"failed: {type(error).__name__}: {error}"
+                _record_status(name, allocator, space, eps, len(universe), status)
+                if weights is None:
+                    continue
+
+                weights = weights.reindex(universe).fillna(0.0)
+                for ticker, weight in weights.items():
+                    weights_rows.append(
+                        {
+                            "train_window": window.label,
+                            "portfolio": name,
+                            "ticker": ticker,
+                            "weight": float(weight),
+                        }
+                    )
+
+                test_slice = test_returns.loc[:, weights.index].fillna(0.0)
+                returns_pieces.setdefault(name, []).append(test_slice.dot(weights))
+
+    weights_panel = pd.DataFrame(
+        weights_rows,
+        columns=["train_window", "portfolio", "ticker", "weight"],
+    )
+    portfolio_status = pd.DataFrame(
+        status_rows,
+        columns=[
+            "train_window",
+            "portfolio",
+            "allocator",
+            "space",
+            "epsilon",
+            "norm",
+            "n_assets",
+            "status",
+        ],
+    )
+
+    if returns_pieces:
+        overlay_columns: dict[str, pd.Series] = {}
+        for name in output_names:
+            if name in returns_pieces:
+                overlay_columns[name] = pd.concat(returns_pieces[name]).sort_index()
+        port_returns_panel = pd.DataFrame(overlay_columns).sort_index()
         port_returns_panel.index.name = "date"
         port_returns_panel.columns.name = "portfolio"
     else:

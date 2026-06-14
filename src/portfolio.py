@@ -280,6 +280,43 @@ def _align_factor_betas(
     return ordered.to_numpy(dtype=float), list(ordered.columns)
 
 
+def _align_initial_weights(
+    w0: pd.Series | np.ndarray,
+    labels: pd.Index | None,
+    n_assets: int,
+) -> np.ndarray:
+    """Poravnaj početne težine ``w0`` s poretkom Sigme.
+
+    Vraća jednodimenzionalni niz duljine ``n_assets`` poredan da odgovara
+    ``Sigmi`` (i njezinim oznakama ako postoje).
+    """
+    if isinstance(w0, pd.Series):
+        if w0.isna().any():
+            raise ValueError("w0 sadrži nedostajuće vrijednosti.")
+        if labels is not None:
+            missing = labels.difference(w0.index)
+            if len(missing) > 0:
+                raise ValueError(
+                    f"Nedostaju početne težine za imovine: {missing.tolist()}"
+                )
+            ordered = w0.loc[labels]
+        elif len(w0) != n_assets:
+            raise ValueError("duljina w0 mora odgovarati dimenzijama Sigme.")
+        else:
+            ordered = w0
+        vector = ordered.to_numpy(dtype=float)
+    else:
+        vector = np.asarray(w0, dtype=float)
+        if vector.ndim != 1:
+            raise ValueError("w0 mora biti jednodimenzionalan.")
+        if vector.shape[0] != n_assets:
+            raise ValueError("duljina w0 mora odgovarati dimenzijama Sigme.")
+
+    if not np.isfinite(vector).all():
+        raise ValueError("w0 sadrži nekonačne vrijednosti.")
+    return vector
+
+
 def min_var_factor_neutral(
     Sigma: pd.DataFrame | np.ndarray,
     factor_betas: pd.DataFrame,
@@ -398,3 +435,82 @@ def min_var_group_and_factor_neutral(
         constraint_builder=constraints_builder,
     )
     return _weights_result(weights, labels)
+
+
+def project_factor_neutral(
+    w0: pd.Series | np.ndarray,
+    Sigma: pd.DataFrame | np.ndarray,
+    factor_betas: pd.DataFrame,
+    w_max: float = W_MAX,
+    epsilon: float = 0.0,
+    norm: str = "sigma",
+) -> pd.Series | np.ndarray:
+    """Projekcijski QP overlay na hijerarhijske težine (Faza 4, F4.1).
+
+    Riješi minimalnu izmjenu početnih težina ``w0`` koja zadovoljava granicu
+    na faktorske bete portfelja:
+
+    ```
+    min_w (w − w0)' Σ (w − w0)   uz   1'w = 1,   0 ≤ w ≤ w_max,
+    |w'β_f| ≤ epsilon   za svaki faktorski stupac u factor_betas
+    ```
+
+    ``norm="sigma"`` (primarno) minimizira tracking error prema ``w0`` u Σ-metrici
+    (Ledoit-Wolf Σ istog prozora); ``norm="euclidean"`` minimizira ``‖w − w0‖²``
+    kao robusnost. Lanac rješavača i numerički obrasci preuzeti iz
+    :func:`_solve_min_variance` (CLARABEL→OSQP→SCS, ``psd_wrap``); bete se
+    poravnavaju sa ``Sigmom`` preko :func:`_align_factor_betas`.
+
+    ``factor_betas`` je DataFrame indeksiran po oznaci dionice s jednim stupcem
+    po faktoru čiju izloženost overlay ograničava (tipično četiri Fama-French
+    stilska faktora SMB, HML, RMW, CMA). ``epsilon = 0`` nameće točnu
+    neutralnost; veći ``epsilon`` daje zazor i pomaže izvedivosti.
+    """
+    if norm not in ("sigma", "euclidean"):
+        raise ValueError("norm mora biti 'sigma' ili 'euclidean'.")
+    if not np.isfinite(epsilon) or epsilon < 0:
+        raise ValueError("epsilon mora biti nenegativna konačna vrijednost.")
+
+    sigma, labels = _as_covariance_matrix(Sigma)
+    n_assets = sigma.shape[0]
+    _validate_weight_bounds(n_assets, w_max)
+
+    w0_vector = _align_initial_weights(w0, labels, n_assets)
+    beta_matrix, _ = _align_factor_betas(factor_betas, labels, n_assets)
+
+    weights = cp.Variable(n_assets)
+    if norm == "sigma":
+        objective = cp.Minimize(cp.quad_form(weights - w0_vector, cp.psd_wrap(sigma)))
+    else:
+        objective = cp.Minimize(cp.sum_squares(weights - w0_vector))
+
+    constraints: list[cp.Constraint] = [
+        cp.sum(weights) == 1,
+        weights >= 0,
+        weights <= w_max,
+    ]
+    for f_idx in range(beta_matrix.shape[1]):
+        beta_col = beta_matrix[:, f_idx]
+        constraints.append(beta_col @ weights <= epsilon)
+        constraints.append(beta_col @ weights >= -epsilon)
+    problem = cp.Problem(objective, constraints)
+
+    installed_solvers = set(cp.installed_solvers())
+    last_error: Exception | None = None
+    for solver in SOLVER_CANDIDATES:
+        if solver not in installed_solvers:
+            continue
+        try:
+            problem.solve(solver=solver, verbose=False)
+        except cp.SolverError as error:
+            last_error = error
+            continue
+        if problem.status in OPTIMAL_STATUSES and weights.value is not None:
+            return _weights_result(np.asarray(weights.value, dtype=float), labels)
+
+    status = problem.status
+    if last_error is not None and status is None:
+        raise RuntimeError(
+            "Nijedan cvxpy rješavač nije mogao riješiti projekcijski QP."
+        ) from last_error
+    raise RuntimeError(f"Projekcijski QP nije uspio sa statusom {status!r}.")

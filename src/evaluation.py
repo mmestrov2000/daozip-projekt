@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from scipy import stats as scipy_stats
 
 
 MONTHS_PER_YEAR = 12
@@ -881,3 +882,112 @@ def block_bootstrap_metric(
         "ci_high": float(ci_high),
         "samples": samples,
     }
+
+
+# ---------------------------------------------------------------------------
+# Deflated Sharpe Ratio (Bailey–López de Prado 2014) — F4.4
+# ---------------------------------------------------------------------------
+
+# Euler–Mascheroniova konstanta (γ) iz aproksimacije očekivanog maksimuma SR-a.
+_EULER_MASCHERONI = 0.5772156649015329
+
+
+def _sr_standard_error(sr: float, gamma3: float, gamma4: float, n_obs: int) -> float:
+    """Standardna pogreška procjene **po-periodnog** Sharpea (Lo 2002; Bailey–LdP).
+
+    ``σ_ŜR = sqrt( (1 − γ₃·ŜR + ((γ₄ − 1)/4)·ŜR²) / (T − 1) )``, gdje je ``γ₃``
+    asimetrija, a ``γ₄`` *ne-ekscesna* kurtoza (γ₄ = 3 za normalnu razdiobu).
+    Vraća ``nan`` ako je izraz pod korijenom ≤ 0 (npr. ekstreman ŜR uz tešku
+    asimetriju).
+    """
+    variance = (1.0 - gamma3 * sr + ((gamma4 - 1.0) / 4.0) * sr**2) / (n_obs - 1.0)
+    if not np.isfinite(variance) or variance <= 0.0:
+        return float("nan")
+    return float(np.sqrt(variance))
+
+
+def _expected_max_sharpe(sr_std: float, n_trials: int) -> float:
+    """Očekivani maksimum SR-a pod H0 (pravi SR = 0) preko ``n_trials`` pokušaja.
+
+    ``E[max ŜR] ≈ σ · [(1 − γ)·Z⁻¹(1 − 1/N) + γ·Z⁻¹(1 − 1/(N·e))]``
+    (Bailey–López de Prado 2014, jedn. 5), gdje je ``σ`` raspršenje procjena
+    SR-a kroz pokušaje, ``γ`` Euler–Mascheroniova konstanta, ``e`` Eulerov broj,
+    a ``Z⁻¹`` inverzna standardna normalna CDF. Za ``n_trials = 1`` nema
+    višestrukog testiranja pa je benchmark 0.
+    """
+    if n_trials < 1:
+        raise ValueError("n_trials mora biti ≥ 1.")
+    if n_trials == 1:
+        return 0.0
+    z1 = float(scipy_stats.norm.ppf(1.0 - 1.0 / n_trials))
+    z2 = float(scipy_stats.norm.ppf(1.0 - 1.0 / (n_trials * np.e)))
+    gamma = _EULER_MASCHERONI
+    return sr_std * ((1.0 - gamma) * z1 + gamma * z2)
+
+
+def _deflated_sharpe_from_moments(
+    sr: float,
+    gamma3: float,
+    gamma4: float,
+    n_obs: int,
+    n_trials: int,
+) -> float:
+    """DSR iz po-periodnog ŜR, asimetrije, (ne-ekscesne) kurtoze, ``T`` i ``N``.
+
+    Izdvojeno radi testiranja naspram ručno izračunatog primjera (F4.4). DSR je
+    Probabilistički Sharpe (Bailey–López de Prado 2012) vrednovan na benchmarku
+    ``SR₀ = E[max ŜR]`` umjesto na nuli:
+
+        ``DSR = Φ( (ŜR − SR₀) / σ_ŜR )``.
+
+    Raspršenje procjena SR-a kroz pokušaje aproksimira se standardnom pogreškom
+    procjene SR-a samog niza (:func:`_sr_standard_error`) — javna funkcija prima
+    samo jedan niz prinosa. Vraća ``nan`` ako je ``σ_ŜR`` nedefiniran ili 0.
+    """
+    sr_std = _sr_standard_error(sr, gamma3, gamma4, n_obs)
+    if not np.isfinite(sr_std) or sr_std == 0.0:
+        return float("nan")
+    sr0 = _expected_max_sharpe(sr_std, n_trials)
+    return float(scipy_stats.norm.cdf((sr - sr0) / sr_std))
+
+
+def deflated_sharpe_ratio(
+    returns: pd.Series,
+    n_trials: int,
+    rf: float | pd.Series = 0.0,
+) -> float:
+    """Deflated Sharpe Ratio (Bailey–López de Prado 2014) za jedan niz prinosa.
+
+    Vraća DSR p-vrijednost: vjerojatnost da je pravi (po-periodni) Sharpe niza
+    veći od nule **nakon** korekcije za (a) asimetriju i kurtozu prinosa
+    (Probabilistički Sharpe, Bailey–López de Prado 2012) i (b) očekivani
+    maksimum SR-a koji bi se pojavio slučajno preko ``n_trials`` isprobanih
+    varijanti (deflacija za višestruko testiranje).
+
+    ``returns`` je niz mjesečnih prinosa; ``rf`` (skalar ili Series, npr. stupac
+    ``RF`` iz FF5 faktora) oduzima se da se dobije višak prinosa — ista
+    konvencija kao u :func:`sharpe_ratio`. SR koji ulazi u formulu je
+    **po-periodni** (ne anualizirani), kako formula i traži. ``n_trials`` je
+    ukupan broj isprobanih varijanti završne usporedbe; F4.4 ga računa
+    programatski iz broja stupaca master panela.
+
+    Vraća ``nan`` ako ima manje od tri opservacije ili je SR nedefiniran.
+    """
+    if n_trials < 1:
+        raise ValueError("n_trials mora biti ≥ 1.")
+    series = returns.dropna().astype(float)
+    n_obs = len(series)
+    if n_obs < 3:
+        return float("nan")
+    if isinstance(rf, pd.Series):
+        excess = series - rf.reindex(series.index).fillna(0.0)
+    else:
+        excess = series - float(rf)
+    std = float(excess.std(ddof=1))
+    if std == 0.0 or not np.isfinite(std):
+        return float("nan")
+    sr = float(excess.mean()) / std
+    values = excess.to_numpy()
+    gamma3 = float(scipy_stats.skew(values, bias=True))
+    gamma4 = float(scipy_stats.kurtosis(values, fisher=False, bias=True))
+    return _deflated_sharpe_from_moments(sr, gamma3, gamma4, n_obs, n_trials)
