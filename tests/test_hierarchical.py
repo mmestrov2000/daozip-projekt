@@ -290,8 +290,31 @@ def _synthetic_walk_forward_inputs(n_assets: int = 8, seed: int = 7):
 
     windows = generate_rolling_windows("2000-01", "2006-12", 60, 12, 12)
     labels = [w.label for w in windows]
+    # Faktorske značajke (FF5 bete + rezidualna vol) za izgradnju faktorskog
+    # stabla u tree_space="factor"; nasumične s fiksnim sjemenom pa faktorska
+    # hijerarhija ne prati korelacijsku strukturu prinosa (stabla se razlikuju).
+    feature_columns = [
+        "beta_mkt",
+        "beta_smb",
+        "beta_hml",
+        "beta_rmw",
+        "beta_cma",
+        "residual_vol",
+    ]
+    feature_values = rng.normal(size=(n_assets, len(feature_columns)))
     factor_exposures = pd.DataFrame(
-        [{"train_window": lab, "ticker": t} for lab in labels for t in tickers]
+        [
+            {
+                "train_window": lab,
+                "ticker": t,
+                **{
+                    col: float(feature_values[i, j])
+                    for j, col in enumerate(feature_columns)
+                },
+            }
+            for lab in labels
+            for i, t in enumerate(tickers)
+        ]
     )
     factor_clusters = pd.DataFrame(
         [
@@ -336,13 +359,69 @@ def test_run_hierarchical_walk_forward_structure():
     assert result["weights_panel"]["weight"].max() <= 0.5 + 1e-9
 
 
-def test_run_hierarchical_walk_forward_factor_space_not_implemented():
-    """tree_space='factor' je rezerviran za Fazu 3 (F3.1)."""
+def test_run_hierarchical_walk_forward_factor_space_structure():
+    """tree_space='factor' (F3.1): 3 stupca prinosa, čist status, valjane težine."""
+    from src.backtest import HIERARCHICAL_FACTOR_PORTFOLIO_NAMES
+
     monthly, fexp, fclust, cclust, meta, windows = _synthetic_walk_forward_inputs()
-    with pytest.raises(NotImplementedError):
-        run_hierarchical_walk_forward(
-            monthly, fexp, fclust, cclust, meta, windows, k=3, tree_space="factor"
-        )
+
+    result = run_hierarchical_walk_forward(
+        monthly, fexp, fclust, cclust, meta, windows, k=3, w_max=0.5,
+        tree_space="factor",
+    )
+
+    panel = result["port_returns_panel"]
+    status = result["portfolio_status"]
+    assert list(panel.columns) == list(HIERARCHICAL_FACTOR_PORTFOLIO_NAMES)
+    assert len(panel) == 24  # 2 prozora × 12 testnih mjeseci
+    assert (status["status"] == "ok").all()
+    assert "capped_weight_share" in status.columns
+    assert status["capped_weight_share"].notna().all()
+
+    weight_sums = (
+        result["weights_panel"].groupby(["train_window", "portfolio"])["weight"].sum()
+    )
+    assert weight_sums.to_numpy() == pytest.approx(1.0)
+    assert result["weights_panel"]["weight"].max() <= 0.5 + 1e-9
+
+
+def test_factor_and_correlation_spaces_differ_only_in_tree():
+    """F3.1: oba prostora dijele univerzum/Σ; težine se razlikuju jer se stabla
+    razlikuju (jedina manipulirana varijabla je ulazna hijerarhija)."""
+    monthly, fexp, fclust, cclust, meta, windows = _synthetic_walk_forward_inputs()
+
+    corr = run_hierarchical_walk_forward(
+        monthly, fexp, fclust, cclust, meta, windows, k=3, w_max=0.5,
+        tree_space="correlation",
+    )
+    factor = run_hierarchical_walk_forward(
+        monthly, fexp, fclust, cclust, meta, windows, k=3, w_max=0.5,
+        tree_space="factor",
+    )
+
+    # Identičan univerzum po prozoru (potvrđuje: mijenja se samo stablo).
+    corr_universe = (
+        corr["weights_panel"].groupby("train_window")["ticker"].apply(set)
+    )
+    factor_universe = (
+        factor["weights_panel"].groupby("train_window")["ticker"].apply(set)
+    )
+    assert corr_universe.to_dict() == factor_universe.to_dict()
+
+    # HRP ovisi o stablu samo preko poretka listova; faktorska hijerarhija ovdje
+    # daje drukčiji poredak od Wardove korelacijske, pa se težine razlikuju.
+    hrp_corr = (
+        corr["weights_panel"]
+        .query("portfolio == 'hrp_corr_ward'")
+        .set_index(["train_window", "ticker"])["weight"]
+    )
+    hrp_factor = (
+        factor["weights_panel"]
+        .query("portfolio == 'hrp_factor'")
+        .set_index(["train_window", "ticker"])["weight"]
+    )
+    aligned = pd.concat([hrp_corr, hrp_factor], axis=1, keys=["corr", "factor"])
+    assert (aligned["corr"] - aligned["factor"]).abs().max() > 1e-6
 
 
 def test_run_hierarchical_walk_forward_membership_filter():

@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import fcluster
 
+from src.clustering import FACTOR_FEATURE_COLUMNS, factor_cluster
 from src.data import membership_on
 from src.hierarchical import (
     apply_w_max,
@@ -471,6 +472,7 @@ def run_walk_forward(
 __all__ = [
     "PORTFOLIO_NAMES",
     "HIERARCHICAL_PORTFOLIO_NAMES",
+    "HIERARCHICAL_FACTOR_PORTFOLIO_NAMES",
     "RollingWindow",
     "generate_rolling_windows",
     "run_walk_forward",
@@ -723,6 +725,12 @@ HIERARCHICAL_PORTFOLIO_NAMES = (
     "nco_corr",
 )
 
+HIERARCHICAL_FACTOR_PORTFOLIO_NAMES = (
+    "hrp_factor",
+    "herc_factor",
+    "nco_factor",
+)
+
 
 def run_hierarchical_walk_forward(
     monthly_returns: pd.DataFrame,
@@ -750,8 +758,15 @@ def run_hierarchical_walk_forward(
     pokreće četiri alokatora: ``hrp_corr_single`` (vjerna replikacija López de
     Prada 2016, jednostruka veza), ``hrp_corr_ward`` (krak kontrolirane
     usporedbe, K1, Wardova veza), ``herc_corr`` (Wardova veza, rez na ``k``) i
-    ``nco_corr`` (Wardova veza, particija rezom na ``k``). ``tree_space="factor"``
-    je predviđen za Fazu 3 (F3.1) i ovdje još nije implementiran.
+    ``nco_corr`` (Wardova veza, particija rezom na ``k``).
+
+    ``tree_space="factor"`` (Faza 3, F3.1) gradi **jednu** hijerarhiju Wardovim
+    klasteriranjem na standardiziranim FF5 značajkama (:func:`factor_cluster`,
+    ``FACTOR_FEATURE_COLUMNS`` iz ``factor_exposures`` po prozoru) i pokreće tri
+    alokatora: ``hrp_factor``, ``herc_factor``, ``nco_factor``. Univerzum, Σ i
+    ``w_max`` identični su korelacijskoj grani — jedina manipulirana varijabla je
+    ulazno stablo (kontrolirana usporedba prostora; veza je Wardova u oba kraka,
+    K1).
 
     ``k`` je broj klastera za HERC i NCO iz primarne procedure odabira K (F1.0).
     Status tablica dobiva stupac ``capped_weight_share`` po (portfelj, prozor)
@@ -761,13 +776,14 @@ def run_hierarchical_walk_forward(
         raise ValueError(
             f"tree_space mora biti 'correlation' ili 'factor', dobiveno {tree_space!r}."
         )
-    if tree_space == "factor":
-        raise NotImplementedError(
-            "tree_space='factor' implementira se u Fazi 3 (F3.1); F1.5 pokriva "
-            "samo korelacijski prostor."
-        )
     if not isinstance(k, int) or k < 1:
         raise ValueError("k mora biti pozitivan cijeli broj.")
+
+    output_names = (
+        HIERARCHICAL_PORTFOLIO_NAMES
+        if tree_space == "correlation"
+        else HIERARCHICAL_FACTOR_PORTFOLIO_NAMES
+    )
 
     cov_fn = _resolve_cov_estimator(cov_estimator)
     membership = _prepare_membership(membership)
@@ -844,25 +860,46 @@ def run_hierarchical_walk_forward(
             )
             continue
 
-        # Stabla se grade jednom po prozoru i dijele među alokatorima.
-        train_corr = train_panel.corr()
-        single_linkage = build_correlation_tree(train_corr, linkage="single")
-        ward_linkage = build_correlation_tree(train_corr, linkage="ward")
-
+        # Stablo/particiju gradimo jednom po prozoru i dijelimo među alokatorima;
+        # jedina razlika između prostora je ulazna hijerarhija (veza je Wardova u
+        # oba kraka — K1, pa Faza 3 manipulira samo prostorom).
         def _hrp_solver(linkage_matrix):
             order = quasi_diagonal_order(linkage_matrix)
             return apply_w_max(hrp_weights(sigma, order), w_max)
 
-        portfolio_solvers: dict[str, Callable[[], tuple[pd.Series, float]]] = {
-            "hrp_corr_single": lambda: _hrp_solver(single_linkage),
-            "hrp_corr_ward": lambda: _hrp_solver(ward_linkage),
-            "herc_corr": lambda: herc_weights(sigma, ward_linkage, k, w_max=w_max),
-            "nco_corr": lambda: nco_weights(
-                sigma,
-                fcluster(ward_linkage, t=k, criterion="maxclust"),
-                w_max=w_max,
-            ),
-        }
+        portfolio_solvers: dict[str, Callable[[], tuple[pd.Series, float]]]
+        if tree_space == "correlation":
+            train_corr = train_panel.corr()
+            single_linkage = build_correlation_tree(train_corr, linkage="single")
+            ward_linkage = build_correlation_tree(train_corr, linkage="ward")
+            portfolio_solvers = {
+                "hrp_corr_single": lambda: _hrp_solver(single_linkage),
+                "hrp_corr_ward": lambda: _hrp_solver(ward_linkage),
+                "herc_corr": lambda: herc_weights(sigma, ward_linkage, k, w_max=w_max),
+                "nco_corr": lambda: nco_weights(
+                    sigma,
+                    fcluster(ward_linkage, t=k, criterion="maxclust"),
+                    w_max=w_max,
+                ),
+            }
+        else:  # tree_space == "factor"
+            features = (
+                factor_exposures.loc[
+                    factor_exposures["train_window"] == window.label
+                ]
+                .set_index("ticker")
+                .loc[universe, FACTOR_FEATURE_COLUMNS]
+            )
+            factor_labels, factor_linkage = factor_cluster(features, k)
+            portfolio_solvers = {
+                "hrp_factor": lambda: _hrp_solver(factor_linkage),
+                "herc_factor": lambda: herc_weights(
+                    sigma, factor_linkage, k, w_max=w_max
+                ),
+                "nco_factor": lambda: nco_weights(
+                    sigma, factor_labels, w_max=w_max
+                ),
+            }
 
         test_returns = monthly_returns.loc[
             window.test_start : window.test_end, universe
@@ -929,7 +966,7 @@ def run_hierarchical_walk_forward(
 
     if returns_pieces:
         columns: dict[str, pd.Series] = {}
-        for name in HIERARCHICAL_PORTFOLIO_NAMES:
+        for name in output_names:
             if name in returns_pieces:
                 columns[name] = pd.concat(returns_pieces[name]).sort_index()
         port_returns_panel = pd.DataFrame(columns).sort_index()

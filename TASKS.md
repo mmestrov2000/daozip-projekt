@@ -592,7 +592,7 @@ odluka 6), benchmark obitelj.
 
 ### Taskovi
 
-- [ ] **F3.1 — Faktorsko stablo kao ulaz u alokatore** (M)
+- [x] **F3.1 — Faktorsko stablo kao ulaz u alokatore** (M)
   - Opis: u runneru iz F1.5 implementirati granu `tree_space="factor"`: po
     prozoru dohvatiti 6 značajki (`FACTOR_FEATURE_COLUMNS`,
     `src/clustering.py:21`) iz `factor_exposures.csv`, pozvati `factor_cluster`
@@ -605,7 +605,8 @@ odluka 6), benchmark obitelj.
   - Prihvaćanje: test prolazi; `run_hierarchical_walk_forward(tree_space="factor")`
     vraća panele istog formata.
   - Ovisnosti: F1.5
-- [ ] **F3.2 — Walk-forward faktorskih verzija** (M)
+  - *Odstupanje:* faktorska grana koristi labele koje `factor_cluster` već vraća iz K-reza (identično `fcluster(..., 'maxclust')` korelacijske grane, bez ponovnog računa); izlazna imena `hrp_factor/herc_factor/nco_factor` (nova konstanta `HIERARCHICAL_FACTOR_PORTFOLIO_NAMES`) — faktorski prostor ima jednu HRP varijantu jer je veza Wardova u oba kraka. Test `..._factor_space_not_implemented` zamijenjen s `..._factor_space_structure` + `..._spaces_differ_only_in_tree` (sintetičke značajke u `_synthetic_walk_forward_inputs` dodane); potvrđeno: isti univerzum/Σ, težine se razlikuju jer se stabla razlikuju.
+- [x] **F3.2 — Walk-forward faktorskih verzija** (M)
   - Opis: pokrenuti `hrp_factor`, `herc_factor`, `nco_factor` kroz svih 21
     prozor; novi notebook `notebooks/11_factor_space_intervention.ipynb`; spojiti
     s panelima Faze 1 u jedinstveni prošireni panel prinosa.
@@ -616,7 +617,8 @@ odluka 6), benchmark obitelj.
   - Prihvaćanje: paneli postoje sa stupcima `hrp_factor, herc_factor, nco_factor`
     i ≥ 240 mjeseci; status log čist.
   - Ovisnosti: F3.1
-- [ ] **F3.3 — Parne razlike korelacijska↔faktorska po alokatoru (test H2, dio 1)** (M)
+  - *Odstupanje:* „21 prozor / ≥240 mjeseci” je predkorekcijski broj (raspon 2005–2025); po zaključanoj korekciji 2026-06-13 (`backtest_start=2008-01`, PROJECT_SPEC §3.1/§3.2, commit 387c94a) backtest je **13 prozora 2013–2025 → 156 mjeseci** po alokatoru, isti zamrznuti raspon kao paneli Faze 1, pa kriterij pratim na 156 (= `len(09_port_returns_panel_hierarchical)`). Sva tri statusa „ok” u svih 13 prozora. Notebook generiran jednokratnim graditeljem koji je potom uklonjen (presedan F1.5/F2.1). Udio na capu: `nco_factor` mean 0,13 / max 0,45, `herc_factor` 0,004, `hrp_factor` 0.
+- [x] **F3.3 — Parne razlike korelacijska↔faktorska po alokatoru (test H2, dio 1)** (M)
   - Opis: kontrolirane parne usporedbe s **vezom konstantnom u oba kraka**
     (korekcija K1): `hrp_factor − hrp_corr_ward` (Ward u oba kraka;
     `hrp_corr_single` je isključen iz uzročne usporedbe jer bi konfundirao vezu
@@ -633,7 +635,8 @@ odluka 6), benchmark obitelj.
     `hrp_factor` s `hrp_corr_ward`, a fusnota o isključenju `hrp_corr_single`
     postoji.
   - Ovisnosti: F3.2
-- [ ] **F3.4 — Stabilnost klastera (ARI) i obrtaj (test H2, dio 2)** (M)
+  - *Odstupanje:* `allocator ∈ {hrp, herc, nco}` (3 retka × 5 metrika = 15: style_concentration, annualized_vol, sharpe_gross, sharpe_net, max_drawdown). Sharpe se bootstrapira na nizovima viška iznad `RF` (rf=0 ostaje konzistentan pod ponovnim uzorkovanjem; neto = nakon troška na refit obrtaj). Fusnota o isključenju `hrp_corr_single` u markdown ćeliji notebooka (11.2). **Rezultat (test H2, dio nagiba):** CI razlike koncentracije stila obuhvaća 0 za **sva tri** alokatora (HRP +0,012 [−0,016, +0,046]; HERC +0,088 [−0,539, +0,243]; NCO −0,061 [−0,154, +0,106]) → faktorski prostor NE neutralizira nagib. Ne-inferiornost vol (gornja granica ≤ +0,01): HRP i NCO da, HERC ne (+0,022).
+- [x] **F3.4 — Stabilnost klastera (ARI) i obrtaj (test H2, dio 2)** (M)
   - Opis: nova funkcija `ari_between_consecutive_windows(cluster_table,
     label_column)` u `src/clustering.py` (koristi već uvezeni
     `adjusted_rand_score`): za uzastopne prozore, ARI na presjeku tickera; za
@@ -649,7 +652,8 @@ odluka 6), benchmark obitelj.
   - Prihvaćanje: test prolazi (identične oznake → ARI=1); CSV-ovi postoje;
     ARI tablica ima 20 redaka po prostoru (prijelazi između 21 prozora).
   - Ovisnosti: F3.2
-- [ ] **F3.5 — Odluka o K: primarno + robusnost** (M)
+  - *Odstupanje:* „20 redaka / 21 prozor” je predkorekcijski broj → po zamrznutom rasponu 2013–2025 (13 prozora) **12 prijelaza po prostoru** (24 retka ukupno, stupac `space`). Oznake klastera računam na **stvarnom backtest univerzumu** po prozoru (iz panela težina), ne iz zastarjelih `factor_clusters.csv`/`correlation_clusters.csv` (K=3, 21 prozor, complete-veza) — korelacijsko stablo = **ward** iz F1.1b rezan na K=10 (K1), faktorsko = `factor_cluster` na FF5; tako ARI odražava particije koje alokatori stvarno vide. Funkcija vraća `from_window, to_window, n_common, ari`. Rezultat: ARI korelacijska 0,29 ± 0,05 > faktorska 0,25 ± 0,05 (faktorski prostor NIJE stabilniji pri K=10); obrtaj usporediv (hrp/herc faktorski malo niži, nco malo viši); redukcija dimenzije 34× (N(N−1)/2 vs 6N) — opisna tablica isprintana u notebooku (nije zaseban CSV, nije u Datoteke). Test `tests/test_ari_stability.py` (5 testova, uklj. invarijantnost na permutaciju oznaka).
+- [x] **F3.5 — Odluka o K: primarno + robusnost** (M)
   - Opis: primarna analiza s istim K za obje verzije (postojeća procedura iz
     notebooka 02 — silueta uz uvjete uloživosti; zaključana odluka 5). Robusnost:
     vlastiti-optimalni K svake verzije (korelacijska: silueta na korelacijskoj
@@ -662,6 +666,7 @@ odluka 6), benchmark obitelj.
     {primarni K, vlastiti K korelacijski, vlastiti K faktorski[, kmeans-NCO]} ×
     {HERC, NCO}.
   - Ovisnosti: F3.2
+  - *Odstupanje:* `11_k_robustness.csv` (14 redaka) dobio stupce `space` i `k` radi nedvosmislenosti — robusnost se računa za **oba prostora** (po „ponoviti HERC/NCO s tim K — svake verzije”), pa su sve kombinacije {primary K=10, own_corr, own_factor, kmeans} × {HERC, NCO} × {correlation, factor} pokrivene. Vlastiti-optimalni K: korelacijski = silueta na korelacijskoj udaljenosti (Wardovo stablo, `metric="precomputed"`) → **K=2**; faktorski = argmax `02_silhouette_by_k.csv` → **K=2** (oba na rubu, monotoni pad — poznati artefakt FF5 prostora, zato je primarni K domenski). kmeans-NCO (riješeno pitanje 7) na standardiziranim FF5 značajkama (faktorski) odn. korelacijskoj udaljenosti (korelacijski), pri primarnom K. Zaključak robustan: koncentracija stila stabilna kroz K-varijante (NCO 0,74–0,88, HERC 0,56–0,66); faktorski prostor ne neutralizira nagib ni pri vlastiti-optimalnom K ni s kmeans particijom.
 - [ ] **F3.6 — Konsolidirani zaključak H2** (S)
   - Opis: markdown sekcija u notebooku 11 + konsolidirana tablica: nagib NIJE
     neutraliziran (iz F3.3), ALI dobitci u stabilnosti (F3.4 ARI), obrtaju

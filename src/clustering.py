@@ -344,6 +344,63 @@ def compare_clusterings(
 
 
 # ---------------------------------------------------------------------------
+# Stabilnost klastera kroz uzastopne prozore (F3.4)
+# ---------------------------------------------------------------------------
+
+
+def ari_between_consecutive_windows(
+    cluster_table: pd.DataFrame,
+    label_column: str,
+) -> pd.DataFrame:
+    """Adjusted Rand Index oznaka klastera između uzastopnih prozora (F3.4).
+
+    ``cluster_table`` je dugi DataFrame sa stupcima ``train_window``, ``ticker``
+    i ``label_column`` (oznake klastera). Za svaki par susjednih prozora
+    (kronološki po ``train_window`` — oznake ``YYYY-MM`` sortiraju se
+    leksikografski = kronološki) računa se ARI na **presjeku dionica** prisutnih
+    u oba prozora. ARI je invarijantan na permutaciju oznaka, pa je usporediv
+    između prostora hijerarhije (test H2, dio 2: stabilnost faktorskih naspram
+    korelacijskih stabala rezanih na isti K).
+
+    Vraća DataFrame sa stupcima ``from_window, to_window, n_common, ari``
+    (jedan redak po prijelazu; ``ari = NaN`` kad je presjek < 2 dionice).
+    """
+    required = {"train_window", "ticker", label_column}
+    missing = required.difference(cluster_table.columns)
+    if missing:
+        raise ValueError(f"cluster_table nedostaju stupci: {sorted(missing)}")
+
+    windows = sorted(cluster_table["train_window"].astype(str).unique())
+    rows: list[dict[str, object]] = []
+    for previous, current in zip(windows[:-1], windows[1:]):
+        prev_labels = cluster_table.loc[
+            cluster_table["train_window"].astype(str) == previous
+        ].set_index("ticker")[label_column]
+        cur_labels = cluster_table.loc[
+            cluster_table["train_window"].astype(str) == current
+        ].set_index("ticker")[label_column]
+        common = prev_labels.index.intersection(cur_labels.index)
+        if len(common) >= 2:
+            ari = float(
+                adjusted_rand_score(
+                    prev_labels.loc[common].to_numpy(),
+                    cur_labels.loc[common].to_numpy(),
+                )
+            )
+        else:
+            ari = float("nan")
+        rows.append(
+            {
+                "from_window": previous,
+                "to_window": current,
+                "n_common": int(len(common)),
+                "ari": ari,
+            }
+        )
+    return pd.DataFrame(rows, columns=["from_window", "to_window", "n_common", "ari"])
+
+
+# ---------------------------------------------------------------------------
 # Orkestracija po prozoru
 # ---------------------------------------------------------------------------
 
